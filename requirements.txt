@@ -61,3 +61,5 @@ urllib3==1.26.8
 Werkzeug==2.0.2
 wrapt==1.13.3
 zipp==3.7.0
+dill==0.3.4
+argparse==1.4.0
