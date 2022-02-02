@@ -52,7 +52,7 @@ class NeuralGAM(tf.keras.Model):
     def build(self):
         """Builds the FeatureCNNs"""
         for i in range(self._num_inputs):
-            self.feature_cnns[i] = build_feature_NN(self._num_units)
+            self.feature_networks[i] = build_feature_NN(self._num_units)
 
     def fit(self, X_train, y_train, max_iter):
         converged = False
@@ -76,10 +76,10 @@ class NeuralGAM(tf.keras.Model):
                 # Compute the partial residual
                 residuals = Z - f[index[idk]].sum(axis=1)
                 # Fit network k with X_train[k] towards residuals
-                self.feature_cnns[k].fit(X_train[X_train.columns[k]],residuals, epochs=epochs, batch_size=batch_size) 
+                self.feature_networks[k].fit(X_train[X_train.columns[k]],residuals, epochs=1) 
                 
                 # Update f with current learned function for predictor k -- get f ready for compute residuals at next iteration
-                f[index[k]] = self.feature_cnns[k].predict(X_train[X_train.columns[k]])  
+                f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])  
             
             #compute how far we are from estimating y_train
             err = mean_squared_error(Z, f.sum(axis=1))
@@ -104,7 +104,7 @@ class NeuralGAM(tf.keras.Model):
         
         output = pd.DataFrame(columns=range(len(X.columns)))
         for i in range(len(X.columns)):
-            output[i] = pd.Series(self.feature_cnns[i].predict(X[i]).flatten())
+            output[i] = pd.Series(self.feature_networks[i].predict(X[i]).flatten())
             
         y_pred = output.sum(axis=1)  + self.beta
         return y_pred

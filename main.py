@@ -21,7 +21,7 @@ def train():
 
     ngam = NeuralGAM(num_inputs = len(X.columns), num_units=64)
 
-    ycal, mse = ngam.fit(X, y, 1, None, 100)
+    ycal, mse = ngam.fit(X_train = X, y_train = y, max_iter = 100)
 
     print("Beta0 {0}".format(ngam.beta))
     
