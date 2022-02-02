@@ -1,9 +1,9 @@
-from typing import List, Optional, Union
+from typing import Union
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error
 import tensorflow as tf
-from tensorflow.keras.layers import Dense, Input
+from tensorflow.keras.layers import Dense
 from tensorflow.keras.models import Sequential
 TfInput = Union[np.ndarray, tf.Tensor]
 import dill
@@ -44,20 +44,17 @@ class NeuralGAM(tf.keras.Model):
         self._num_units = num_units
         self._kwargs = kwargs
         self.feature_networks = [None] * self._num_inputs
+        self.training_mse = list()
+        self.y = None
 
         self.build()
         
     def build(self):
         """Builds the FeatureCNNs"""
-        self.feature_cnns = [None] * self._num_inputs
         for i in range(self._num_inputs):
             self.feature_cnns[i] = build_feature_NN(self._num_units)
 
-        self._true = tf.constant(True, dtype=tf.bool)
-        self._false = tf.constant(False, dtype=tf.bool)
-
-
-    def fit(self, X_train, y_train, epochs, batch_size, max_iter):
+    def fit(self, X_train, y_train, max_iter):
         converged = False
         
         self.beta = y_train.mean()
@@ -65,7 +62,6 @@ class NeuralGAM(tf.keras.Model):
         f = X_train*0
         index = f.columns.values
         CONVERGENCE_THRESHOLD = 0.0001
-        self.training_mse = [] * max_iter
         it = 0
         
         # Make the data be zero-mean

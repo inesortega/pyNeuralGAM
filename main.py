@@ -25,12 +25,12 @@ def train():
 
     print("Beta0 {0}".format(ngam.beta))
     
-    ngam.save_model("./output.gam")
+    ngam.save_model("./output.ngam")
    
     
 def tests():
     
-    ngam = NeuralGAM(load_model("./output.gam"))
+    ngam = NeuralGAM(load_model("./output.ngam"))
     
     X_test = pd.read_csv("./test/data/x_test.csv")
     y_test = pd.read_csv("./test/data/y_test.csv", squeeze=True)

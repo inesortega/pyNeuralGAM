@@ -4,4 +4,4 @@ venv
 .env
 __pycache__
 .vscode/settings.json
-*.model
+*.ngam

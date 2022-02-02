@@ -1,0 +1,2 @@
+#add csv files to lfs tracking
+*.csv filter=lfs diff=lfs merge=lfs -text
