@@ -1,11 +1,12 @@
 import matplotlib
-matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from pygam import l
 from sklearn.model_selection import train_test_split
 from src.NeuralGAM.ngam import NeuralGAM, load_model
 import argparse
+import seaborn as sns
 
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(dest='subparser')
@@ -21,21 +22,30 @@ def train():
 
     ngam = NeuralGAM(num_inputs = len(X.columns), num_units=64)
 
-    ycal, mse = ngam.fit(X_train = X, y_train = y, max_iter = 100)
+    ycal, mse = ngam.fit(X_train = X, y_train = y, max_iter = 50)
 
     print("Beta0 {0}".format(ngam.beta))
     
     ngam.save_model("./output.ngam")
    
     
-def tests():
+def test():
     
-    ngam = NeuralGAM(load_model("./output.ngam"))
+    ngam = load_model("./output.ngam")
     
     X_test = pd.read_csv("./test/data/x_test.csv")
     y_test = pd.read_csv("./test/data/y_test.csv", squeeze=True)
     
+    fs = ngam.compute_X(X_test)
+    
     y_pred = ngam.predict(X_test)
+    
+    from sklearn.metrics import mean_squared_error
+    mse = mean_squared_error(y_test, y_pred)
+    
+    plot_predicted_vs_real([y_test, y_pred], ["real", "predicted"], mse=mse)
+    plot_partial_dependencies(X_test, fs)
+    plt.show(block=True)
     
 def generate_data():
     
@@ -56,27 +66,29 @@ def generate_data():
     y_train.to_csv("./test/data/y_train.csv", index=False)
     y_test.to_csv("./test/data/y_test.csv", index=False)
        
-def plot_predicted_vs_real(y_real, y_pred):
-    fig = plt.plot()
-    fig.plot(y_real, c='r', ls='--', legend="Real y")
-    fig.plot(y_pred, c='b', ls='.', legend="Predicted y")
-    fig.grid()
-    fig.set_title("Predicted vs Real function plot")
-    
-def plot_partial_dependencies(x, y_pred):
-    
-    fig, axs = plt.subplots(nrows=1, ncols=len(x.columns)-1)
-    fig.suptitle("Partial dependency plots with confidence intervals at 95%", fontsize=16)
-    for i, term in enumerate(x.columns):
-        
-        #some confidence interval
-        ci = 0.95 * np.std(y_pred)/np.sqrt(len(x[i]))
-        axs[i].plot(x[i], y_pred)
-        axs[i].plot(x[i], ci, c='r', ls='--')
+def plot_predicted_vs_real(y_list: list, legends: list, mse:str):
+    fig, axs = plt.subplots(1, len(y_list))
+    fig.suptitle("MSE on prediction = {0}".format(mse), fontsize=16)
+    for i, term in enumerate(y_list):
+        axs[i].plot(y_list[i])
         axs[i].grid()
-        axs[i].set_title(term)
+        axs[i].set_title(legends[i])
+    
+def plot_partial_dependencies(x, fs):
+    fig, axs = plt.subplots(nrows=1, ncols=len(fs.columns))
+    fig.suptitle("Learned functions with confidence intervals at 95%", fontsize=16)
+    for i, term in enumerate(fs.columns):
+        x_i = x[x.columns[i]]
+        y = fs[fs.columns[i]]
         
+        # calculate confidence interval at 95%
+        ci = 1.96 * np.std(y)/np.sqrt(len(x_i))
         
+        sns.lineplot(x_i, y, color='b', ax=axs[i])
+        sns.lineplot(x_i, (y-ci), color='r', linestyle='--', ax=axs[i])
+        sns.lineplot(x_i, (y+ci), color='r', linestyle='--', ax=axs[i])
+        axs[i].set_title("f[{0}]".format(i))
+
 if __name__ == "__main__":
     kwargs = vars(parser.parse_args())
     globals()[kwargs.pop('subparser')](**kwargs)

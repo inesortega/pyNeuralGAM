@@ -45,7 +45,6 @@ class NeuralGAM(tf.keras.Model):
         self._kwargs = kwargs
         self.feature_networks = [None] * self._num_inputs
         self.training_mse = list()
-        self.y = None
 
         self.build()
         
@@ -94,25 +93,27 @@ class NeuralGAM(tf.keras.Model):
             it+=1
             
         # Reconstruct y = sum(f) + beta
-        self.y = self.beta + f.sum(axis=1)
+        y = self.beta + f.sum(axis=1)
         
-        return self.y, self.training_mse
+        return y, self.training_mse
 
-        
-    def predict(self, X: pd.DataFrame):
-        """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
-        
+    def compute_X(self, X: pd.DataFrame):
         output = pd.DataFrame(columns=range(len(X.columns)))
         for i in range(len(X.columns)):
-            output[i] = pd.Series(self.feature_networks[i].predict(X[i]).flatten())
+            output[i] = pd.Series(self.feature_networks[i].predict(X[X.columns[i]]).flatten())
+        return output
             
+    def predict(self, X: pd.DataFrame):
+        """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
+        output = self.compute_X(X)
         y_pred = output.sum(axis=1)  + self.beta
         return y_pred
     
     def save_model(self, output_path):
         with open(output_path, "wb") as file:
             dill.dump(self, file, dill.HIGHEST_PROTOCOL)
-            
-def load_model(model_path):
+       
+          
+def load_model(model_path) -> NeuralGAM:
     with open(model_path, "rb") as file:
         return dill.load(file)
