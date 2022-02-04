@@ -14,6 +14,7 @@ def build_feature_NN(num_units = 64):
 
     # add input layer
     model.add(Dense(1))
+    # The Hidden Layers :
     model.add(Dense(num_units, kernel_initializer='glorot_uniform', activation='relu'))
     # add output layer
     model.add(Dense(1))
@@ -49,7 +50,7 @@ class NeuralGAM(tf.keras.Model):
         self.build()
         
     def build(self):
-        """Builds the FeatureCNNs"""
+        """Builds a FeatureNNs for each feature """
         for i in range(self._num_inputs):
             self.feature_networks[i] = build_feature_NN(self._num_units)
 
@@ -97,7 +98,8 @@ class NeuralGAM(tf.keras.Model):
         
         return y, self.training_mse
 
-    def compute_X(self, X: pd.DataFrame):
+    def get_partial_dependencies(self, X: pd.DataFrame):
+        """ Compute the partial dependencies for each feature in X"""
         output = pd.DataFrame(columns=range(len(X.columns)))
         for i in range(len(X.columns)):
             output[i] = pd.Series(self.feature_networks[i].predict(X[X.columns[i]]).flatten())
@@ -105,7 +107,7 @@ class NeuralGAM(tf.keras.Model):
             
     def predict(self, X: pd.DataFrame):
         """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
-        output = self.compute_X(X)
+        output = self.get_partial_dependencies(X)
         y_pred = output.sum(axis=1)  + self.beta
         return y_pred
     
