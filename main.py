@@ -19,34 +19,25 @@ parser_run = subparsers.add_parser('test', help='test NeuralGAM model')
 parser_run = subparsers.add_parser('generate_data', help='generate data to test/train NeuralGAM model')
 
 def train():
-
-    # works well with 64 units
-    X = pd.read_csv("./test/data/polynomial/x_train.csv")
-    y = pd.read_csv("./test/data/polynomial/y_train.csv", squeeze=True)
-       
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
     
-    ngam = NeuralGAM(num_inputs = len(X_train.columns), num_units=64)
+    X = pd.read_csv("./test/data/data_err/x_train.csv")
+    y = pd.read_csv("./test/data/data_err/y_train.csv", squeeze=True)
 
-    ycal, mse = ngam.fit(X_train = X_train, y_train = y_train, max_iter = 100)
+    ngam = NeuralGAM(num_inputs = len(X.columns), num_units=64)
+    ycal, mse = ngam.fit(X_train = X, y_train = y, max_iter = 100)
 
-    print("Achieved RMSE = {0}".format(mean_squared_error(y_train, ycal, squared=False)))
+    print("Achieved RMSE = {0}".format(mean_squared_error(y, ycal, squared=False)))
     
     print("Beta0 {0}".format(ngam.beta))
     
-    dt_string = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    ngam.save_model("./output-{0}.ngam".format(dt_string))
+    ngam.save_model("./output.ngam")
     
-    test(X_test, y_test)
-   
+def test():
     
-def test(X_test=None, y_test=None):
-    
-    ngam = load_model("./results-polynomial/output.ngam")
-    
-    if X_test is None and y_test is None:
-        X_test = pd.read_csv("./test/data/polynomial/x_test.csv")
-        y_test = pd.read_csv("./test/data/polynomial/y_test.csv", squeeze=True)
+    ngam = load_model("./output.ngam")
+
+    X_test = pd.read_csv("./test/data/data_err/x_test.csv")
+    y_test = pd.read_csv("./test/data/data_err/y_test.csv", squeeze=True)
     
     y_pred = ngam.predict(X_test)
     
@@ -94,20 +85,28 @@ def generate_polynomial_data():
     x1 = np.array(-10 + np.random.random((25000))*10)
     x2 = np.array(-10 + np.random.random((25000))*10)
     x3 = np.array(-10 + np.random.random((25000))*10)
-    
-    b = np.array(-10 + np.random.random((25000))*10)
+    b = np.ones(25000)* 2
 
-    X = pd.DataFrame([x1,x2,x3, b]).transpose()
+    X = pd.DataFrame([x1,x2,x3,b]).transpose()
 
+    err = np.random.normal(loc=0, scale=0.5, size=25000)
     # y = f(x1) + f(x2) + f(x3) =  x1^2 + 2x2 + sin(x3).
-    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3) + b)
+    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3) + b) + err
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
     
-    X_train.to_csv("./test/data/x_train.csv", index=False)
-    X_test.to_csv("./test/data/x_test.csv", index=False)
-    y_train.to_csv("./test/data/y_train.csv", index=False)
-    y_test.to_csv("./test/data/y_test.csv", index=False)
+    X_train.to_csv("./x_train.csv", index=False)
+    X_test.to_csv("./x_test.csv", index=False)
+    y_train.to_csv("./y_train.csv", index=False)
+    y_test.to_csv("./y_test.csv", index=False)
+       
+def plot_predicted_vs_real(y_list: list, legends: list, mse:str):
+    fig, axs = plt.subplots(1, len(y_list))
+    fig.suptitle("MSE on prediction = {0}".format(mse), fontsize=16)
+    for i, term in enumerate(y_list):
+        axs[i].plot(y_list[i])
+        axs[i].grid()
+        axs[i].set_title(legends[i])
     
     
 def compute_edf(a: pd.Series, b: pd.Series):
