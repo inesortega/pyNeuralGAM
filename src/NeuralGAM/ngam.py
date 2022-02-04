@@ -60,7 +60,7 @@ class NeuralGAM(tf.keras.Model):
             
         f = X_train*0
         index = f.columns.values
-        CONVERGENCE_THRESHOLD = 0.0001
+        CONVERGENCE_THRESHOLD = 0.001
         it = 0
         
         # Make the data be zero-mean
@@ -78,7 +78,8 @@ class NeuralGAM(tf.keras.Model):
                 self.feature_networks[k].fit(X_train[X_train.columns[k]],residuals, epochs=1) 
                 
                 # Update f with current learned function for predictor k -- get f ready for compute residuals at next iteration
-                f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])  
+                f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
+                f[index[k]] = f[index[k]] - np.mean(f[index[k]])  
             
             #compute how far we are from estimating y_train
             err = mean_squared_error(Z, f.sum(axis=1))
@@ -87,7 +88,7 @@ class NeuralGAM(tf.keras.Model):
             print("ITERATION#{0}: Current MSE = {1}".format(it, self.training_mse[it]))
             print("ITERATION#{0}: MSE delta with prev iteration = {1}".format(it, mse_delta))
             
-            if err < CONVERGENCE_THRESHOLD:
+            if mse_delta < CONVERGENCE_THRESHOLD and it > 0:
                 converged = True
             
             it+=1

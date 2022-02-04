@@ -17,12 +17,12 @@ parser_run = subparsers.add_parser('generate_data', help='generate data to test/
 
 def train():
     
-    X = pd.read_csv("./test/data/x_train.csv")
-    y = pd.read_csv("./test/data/y_train.csv", squeeze=True)
+    X = pd.read_csv("./test/data/data_err/x_train.csv")
+    y = pd.read_csv("./test/data/data_err/y_train.csv", squeeze=True)
 
     ngam = NeuralGAM(num_inputs = len(X.columns), num_units=64)
 
-    ycal, mse = ngam.fit(X_train = X, y_train = y, max_iter = 50)
+    ycal, mse = ngam.fit(X_train = X, y_train = y, max_iter = 100)
 
     print("Beta0 {0}".format(ngam.beta))
     
@@ -33,8 +33,8 @@ def test():
     
     ngam = load_model("./output.ngam")
     
-    X_test = pd.read_csv("./test/data/x_test.csv")
-    y_test = pd.read_csv("./test/data/y_test.csv", squeeze=True)
+    X_test = pd.read_csv("./test/data/data_err/x_test.csv")
+    y_test = pd.read_csv("./test/data/data_err/y_test.csv", squeeze=True)
     
     fs = ngam.compute_X(X_test)
     
@@ -52,19 +52,20 @@ def generate_data():
     x1 = np.array(-10 + np.random.random((25000))*10)
     x2 = np.array(-10 + np.random.random((25000))*10)
     x3 = np.array(-10 + np.random.random((25000))*10)
-    b = np.array(-10 + np.random.random((25000))*10)
+    b = np.ones(25000)* 2
 
-    X = pd.DataFrame([x1,x2,x3, b]).transpose()
+    X = pd.DataFrame([x1,x2,x3,b]).transpose()
 
+    err = np.random.normal(loc=0, scale=0.5, size=25000)
     # y = f(x1) + f(x2) + f(x3) =  x1^2 + 2x2 + sin(x3).
-    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3) + b)
+    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3) + b) + err
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
     
-    X_train.to_csv("./test/data/x_train.csv", index=False)
-    X_test.to_csv("./test/data/x_test.csv", index=False)
-    y_train.to_csv("./test/data/y_train.csv", index=False)
-    y_test.to_csv("./test/data/y_test.csv", index=False)
+    X_train.to_csv("./x_train.csv", index=False)
+    X_test.to_csv("./x_test.csv", index=False)
+    y_train.to_csv("./y_train.csv", index=False)
+    y_test.to_csv("./y_test.csv", index=False)
        
 def plot_predicted_vs_real(y_list: list, legends: list, mse:str):
     fig, axs = plt.subplots(1, len(y_list))
