@@ -16,6 +16,7 @@ def build_feature_NN(num_units = 64):
     model.add(Dense(1))
     # The Hidden Layers :
     model.add(Dense(num_units, kernel_initializer='glorot_uniform', activation='relu'))
+    #model.add(Dense(num_units/2, kernel_initializer='glorot_uniform', activation='relu'))
     # add output layer
     model.add(Dense(1))
     # compile computing MSE with Adam optimizer
@@ -46,7 +47,7 @@ class NeuralGAM(tf.keras.Model):
         self._kwargs = kwargs
         self.feature_networks = [None] * self._num_inputs
         self.training_mse = list()
-
+        self.y = None
         self.build()
         
     def build(self):
@@ -86,16 +87,18 @@ class NeuralGAM(tf.keras.Model):
             err = mean_squared_error(Z, f.sum(axis=1))
             self.training_mse.append(err)
             mse_delta = np.abs(self.training_mse[it] - self.training_mse[it-1])
-            print("ITERATION#{0}: Current MSE = {1}".format(it, self.training_mse[it]))
+            print("ITERATION#{0}: Current MSE = {1}".format(it, err))
             print("ITERATION#{0}: MSE delta with prev iteration = {1}".format(it, mse_delta))
             
-            if mse_delta < CONVERGENCE_THRESHOLD and it > 0:
+            if err < CONVERGENCE_THRESHOLD and it > 0:
+                print("Z and f(x) converged...")
                 converged = True
             
             it+=1
             
         # Reconstruct y = sum(f) + beta
         y = self.beta + f.sum(axis=1)
+        self.y = y
         
         return y, self.training_mse
 
