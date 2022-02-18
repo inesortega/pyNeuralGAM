@@ -5,24 +5,10 @@ from sklearn.metrics import mean_squared_error
 import tensorflow as tf
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.models import Sequential
+from tensorflow.keras.optimizers import Adam
 TfInput = Union[np.ndarray, tf.Tensor]
 import dill
-
-def build_feature_NN(num_units = 64):
-    """ Generates a model to fit a specific feature of the dataset"""
-    model = Sequential()
-
-    # add input layer
-    model.add(Dense(1))
-    # The Hidden Layers :
-    model.add(Dense(num_units, kernel_initializer='glorot_uniform', activation='relu'))
-    #model.add(Dense(num_units/2, kernel_initializer='glorot_uniform', activation='relu'))
-    # add output layer
-    model.add(Dense(1))
-    # compile computing MSE with Adam optimizer
-    model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mean_absolute_error'])
-
-    return model
+import os
 
 class NeuralGAM(tf.keras.Model):
     """
@@ -32,6 +18,7 @@ class NeuralGAM(tf.keras.Model):
     def __init__(self,
                 num_inputs,
                 num_units,
+                convergence_threshold,
                 **kwargs):
         """Initializes NeuralGAM hyperparameters.
 
@@ -47,13 +34,36 @@ class NeuralGAM(tf.keras.Model):
         self._kwargs = kwargs
         self.feature_networks = [None] * self._num_inputs
         self.training_mse = list()
+        self.convergence_threshold = convergence_threshold
         self.y = None
         self.build()
+
+    
+    def build_feature_NN(self):
+        """ Generates a model to fit a specific feature of the dataset"""
+        model = Sequential()
+
+        # add input layer
+        model.add(Dense(1))
+        # The Hidden Layers :
+        model.add(Dense(256, kernel_initializer='glorot_uniform', activation='relu'))
+        model.add(Dense(128, kernel_initializer='glorot_uniform', activation='relu'))
+        model.add(Dense(64, kernel_initializer='glorot_uniform', activation='relu'))
+        model.add(Dense(32, kernel_initializer='glorot_uniform', activation='relu'))
+        # add output layer
+        model.add(Dense(1))
+        # compile computing MSE with Adam optimizer
         
+        opt = Adam(learning_rate=0.001, beta_2=0.8)
+        model.compile(loss='mean_squared_error', optimizer="adam", metrics=['mean_absolute_error'])
+
+        return model
+
+
     def build(self):
         """Builds a FeatureNNs for each feature """
         for i in range(self._num_inputs):
-            self.feature_networks[i] = build_feature_NN(self._num_units)
+            self.feature_networks[i] = self.build_feature_NN()
 
     def fit(self, X_train, y_train, max_iter):
         converged = False
@@ -62,7 +72,7 @@ class NeuralGAM(tf.keras.Model):
             
         f = X_train*0
         index = f.columns.values
-        CONVERGENCE_THRESHOLD = 0.001
+        CONVERGENCE_THRESHOLD = 0.1
         it = 0
         
         # Make the data be zero-mean
@@ -77,7 +87,7 @@ class NeuralGAM(tf.keras.Model):
                 # Compute the partial residual
                 residuals = Z - f[index[idk]].sum(axis=1)
                 # Fit network k with X_train[k] towards residuals
-                self.feature_networks[k].fit(X_train[X_train.columns[k]],residuals, epochs=1) 
+                self.feature_networks[k].fit(X_train[X_train.columns[k]],residuals, epochs=2, ) 
                 
                 # Update f with current learned function for predictor k -- get f ready for compute residuals at next iteration
                 f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
@@ -116,7 +126,9 @@ class NeuralGAM(tf.keras.Model):
         return y_pred
     
     def save_model(self, output_path):
-        with open(output_path, "wb") as file:
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
+        with open(output_path + "/model.ngam", "wb") as file:
             dill.dump(self, file, dill.HIGHEST_PROTOCOL)
        
           

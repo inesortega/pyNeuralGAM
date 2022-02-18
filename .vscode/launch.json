@@ -13,20 +13,28 @@
             "program": "${file}",
         },
         {
-            "name": "Train",
+            "name": "Homoscedastic Uniform",
             "type": "python",
             "request": "launch",
             "program": "main.py",
             "cwd": "${workspaceFolder}",
-            "args": ["train"]
+            "args": ["-t","homoscedastic", "-d", "uniform"]
         },
         {
-            "name": "Test",
+            "name": "Heteroscedastic Uniform",
             "type": "python",
             "request": "launch",
             "program": "main.py",
             "cwd": "${workspaceFolder}",
-            "args": ["test"]
+            "args": ["-t","heteroscedastic", "-d", "uniform"]
+        },
+        {
+            "name": "Homoscedastic Normal",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "cwd": "${workspaceFolder}",
+            "args": ["-t","homoscedastic", "-d", "normal"]
         }
     ]
 }

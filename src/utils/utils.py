@@ -14,7 +14,7 @@ from src.NeuralGAM.ngam import NeuralGAM, load_model
 np.random.seed = 42
       
 """ PLOTTING aux functions """
-def plot_list(dataframe_list: list, legends: list, title:str):
+def plot_predicted_vs_real(dataframe_list: list, legends: list, title:str, output_path=None):
     fig, axs = plt.subplots(1, len(dataframe_list))
     fig.suptitle(title, fontsize=16)
     for i, term in enumerate(dataframe_list):
@@ -22,8 +22,12 @@ def plot_list(dataframe_list: list, legends: list, title:str):
         axs[i].grid()
         axs[i].set_title(legends[i])
 
+    if output_path:
+        plt.savefig(output_path, dpi = 100)
+        fig = plt.gcf()
+        plt.show(block=False)
     
-def plot_partial_dependencies(x, fs, title:str):
+def plot_partial_dependencies(x, fs, title:str, output_path=None):
     fig, axs = plt.subplots(nrows=1, ncols=len(fs.columns))
     fig.suptitle(title, fontsize=16)
     for i, term in enumerate(fs.columns):
@@ -43,16 +47,12 @@ def plot_partial_dependencies(x, fs, title:str):
         axs[i].grid()
         axs[i].set_title("f[{0}]".format(i))
 
-      
-def plot_predicted_vs_real(y_list: list, legends: list, mse:str):
-    fig, axs = plt.subplots(1, len(y_list))
-    fig.suptitle("MSE on prediction = {0}".format(mse), fontsize=16)
-    for i, term in enumerate(y_list):
-        axs[i].plot(y_list[i])
-        axs[i].grid()
-        axs[i].set_title(legends[i])
-    
-    
+    if output_path:
+        plt.savefig(output_path, dpi = 100)
+        fig = plt.gcf()
+        plt.show(block=False)
+
+
 def split(X, y):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, shuffle=False)
     return X_train.reset_index(drop=True), X_test.reset_index(drop=True), y_train.reset_index(drop=True).squeeze(), y_test.reset_index(drop=True).squeeze()
@@ -72,69 +72,74 @@ def save(X_train,X_test,y_train,y_test, output_folder):
     
         
 """ DATA GENERATION """
-def generate_homoskedastic_normal_data(nrows=25000, output_folder = None):
-    """
-    Returns a pair of X,y to be used with NeuralGAM
-    :param: nrows: data size (number of rows)
-    :param: output_folder: folder path to save the generated files locally in CSV format
-    :return: X: pandas Dataframe object with generated X (one column per feature). Xs follow a normal distribution
-    :return: y: pandas Series object with computed y, with a normal distribution + homoskedastic residual
-    """
-    x1 = np.array(-10 + np.random.normal((nrows))*10)
-    x2 = np.array(-10 + np.random.normal((nrows))*10)
-    x3 = np.array(-10 + np.random.normal((nrows))*10)
+
+def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
+    if data_type == "homoscedastic":
+        err = np.random.normal(loc=0, scale=0.2, size=nrows)
+    elif data_type == "heteroscedastic":
+        x_sum = X.sum(axis=1)
+        err = np.random.normal(loc=0, scale=np.abs(0.01*x_sum), size=nrows)
+
+    print("\n Intercept: {0} data".format(data_type))
+    print(pd.DataFrame(err))
+    return err
+
+
+def generate_normal_data(nrows, data_type, output_path=""):
+    x1 = np.array(-10 + np.random.normal(size=nrows)*10)
+    x2 = np.array(-10 + np.random.normal(size=nrows)*10)
+    x3 = np.array(-10 + np.random.normal(size=nrows)*10)
     b = np.ones(nrows)* 2
 
     X = pd.DataFrame([x1,x2,x3,b]).transpose()
     X_func = pd.DataFrame([x1*x1, 2*x2, np.sin(x3), b]).transpose()
-    plot_partial_dependencies(X, X_func, "Original f(x)")
+    plot_partial_dependencies(X, X_func, "Original f(x)", output_path=output_path + "/original_f.png")
     
-    print("Residuals")
-    err = np.random.normal(loc=0, scale=0.5, size=nrows)
-    print(pd.DataFrame(err).describe())
-    
-    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3) + b) + err
     print("y = f(x1) + f(x2) + f(x3) + b =  x1^2 + 2x2 + sin(x3) + b")
-
-    if output_folder:
-        save(X, y, output_folder)
     
+    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3) + b)
+    err = generate_err(nrows=nrows, data_type=data_type, X=X)
+    y = y + err
     return X, y
 
-
-def generate_homoskedastic_uniform_data(nrows=25000, output_folder = None):
-    """
-    Returns a pair of X,y to be used with NeuralGAM
-    :param: nrows: data size (number of rows)
-    :param: output_folder: folder path to save the generated files locally in CSV format
-    :return: X: pandas Dataframe object with generated X (one column per feature). Xs follow a “continuous uniform” distribution
-    :return: y: pandas Series object with computed y, with a normal distribution + homoskedastic error
-    """
+def generate_uniform_data(nrows, data_type, output_path = ""):
+    
     x1 = np.array(-10 + np.random.random((nrows))*10)
     x2 = np.array(-10 + np.random.random((nrows))*10)
     x3 = np.array(-10 + np.random.random((nrows))*10)
     b = np.ones(nrows)* 2
 
     X = pd.DataFrame([x1,x2,x3,b]).transpose()
-    X.columns = list(X.columns)
     X_func = pd.DataFrame([x1*x1, 2*x2, np.sin(x3), b]).transpose()
-    plot_partial_dependencies(X, X_func, "Dataset f(x)")
-    plt.show(block=False)
-    
-    print("Residuals")
-    err = np.random.normal(loc=0, scale=0.5, size=nrows)
-    print(pd.DataFrame(err).describe())
-    
-    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3) + b) + err
+    plot_partial_dependencies(X, X_func, "Original f(x)", output_path=output_path + "/original_f.png")
     print("y = f(x1) + f(x2) + f(x3) + b =  x1^2 + 2x2 + sin(x3) + b")
-    
-    X_train, X_test, y_train, y_test = split(X, y)
-    
-    if output_folder:
-        save(X_train, X_test, y_train, y_test, output_folder) 
-    
-    return X_train, X_test, y_train, y_test 
 
+    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3) + b)
+    err = generate_err(nrows=nrows, data_type=data_type, X=X)
+
+    y = y + err
+
+    return X, y
+
+
+def generate_data(data_type, distribution, nrows=25000, output_folder = ""):
+    """
+        Returns a pair of X,y to be used with NeuralGAM
+        :param: data_type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
+        :param: distribution: generate normal or uniform distributed X data {uniform, normal}
+        :param: nrows: data size (number of rows)
+        :param: output_folder: folder path to save the generated files locally in CSV format
+        :return: X: pandas Dataframe object with generated X (one column per feature). Xs follow a normal distribution
+        :return: y: pandas Series object with computed y, with a normal distribution + homoskedastic residual
+    """
+    
+    if distribution == "uniform":
+        X, y = generate_uniform_data(nrows, data_type, output_path=output_folder)
+
+    elif distribution == "normal":
+        X, y = generate_normal_data(nrows, data_type, output_path=output_folder)   
+
+    return X, y
     
 def compute_edf(a: pd.Series, b: pd.Series):
     return scipy.stats.ttest_rel(a, b)
