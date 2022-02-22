@@ -10,6 +10,7 @@ from tensorflow.keras.regularizers import l1_l2
 TfInput = Union[np.ndarray, tf.Tensor]
 import dill
 import os
+from sklearn.preprocessing import MinMaxScaler
 
 class NeuralGAM(tf.keras.Model):
     """
@@ -45,9 +46,9 @@ class NeuralGAM(tf.keras.Model):
         # add input layer
         model.add(Dense(1))
         # The Hidden Layers :
+        model.add(Dense(256, kernel_initializer='glorot_normal', activation='relu'))
         model.add(Dense(128, kernel_initializer='glorot_normal', activation='relu'))
-        model.add(Dense(128, kernel_initializer='glorot_normal', activation='relu'))
-        # model.add(Dense(64, kernel_initializer='glorot_uniform', activation='relu'))
+        model.add(Dense(64, kernel_initializer='glorot_normal', activation='relu'))
         # add output layer
         model.add(Dense(1))
         # compile computing MSE with Adam optimizer
@@ -65,7 +66,7 @@ class NeuralGAM(tf.keras.Model):
         converged = False
         
         self.beta = y_train.mean()
-            
+        
         f = X_train*0
         g = f
         index = f.columns.values
@@ -88,7 +89,7 @@ class NeuralGAM(tf.keras.Model):
                 
                 # Update f with current learned function for predictor k -- get f ready for compute residuals at next iteration
                 f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
-                f[index[k]] = f[index[k]] - np.mean(f[index[k]])  
+                # f[index[k]] = f[index[k]] - np.mean(f[index[k]])  
             
             g = f
             #compute how far we are from estimating y_train
@@ -98,7 +99,7 @@ class NeuralGAM(tf.keras.Model):
             print("ITERATION#{0}: Current MSE = {1}".format(it, err))
             print("ITERATION#{0}: MSE delta with prev iteration = {1}".format(it, mse_delta))
             
-            if err < convergence_threshold and mse_delta < DELTA_THRESHOLD and it > 0:
+            if err < convergence_threshold and it > 0:
                 print("Z and f(x) converged...")
                 converged = True
             

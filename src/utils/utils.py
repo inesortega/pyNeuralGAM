@@ -9,6 +9,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 import scipy
 from src.NeuralGAM.ngam import NeuralGAM, load_model
+from scipy.stats import truncnorm
 
 #todo delete in prod!!
 np.random.seed = 42
@@ -46,7 +47,7 @@ def plot_partial_dependencies(x, fs, title:str, output_path=None):
         sns.lineplot(data = data, x='x', y='y+ci', color='r', linestyle='--', ax=axs[i])
         axs[i].grid()
         axs[i].set_title("f[{0}]".format(i))
-
+  
     if output_path:
         plt.savefig(output_path, dpi = 100)
         fig = plt.gcf()
@@ -86,9 +87,10 @@ def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
 
 
 def generate_normal_data(nrows, data_type, output_path=""):
-    x1 = np.array(-10 + np.random.normal(size=nrows)*10)
-    x2 = np.array(-10 + np.random.normal(size=nrows)*10)
-    x3 = np.array(-10 + np.random.normal(size=nrows)*10)
+    
+    x1 = truncnorm(a=-10, b=10, loc=0.0, scale=1.0).rvs(nrows)
+    x2 = truncnorm(a=-10, b=10, loc=0.0, scale=1.0).rvs(nrows)
+    x3 = truncnorm(a=-10, b=10, loc=0.0, scale=1.0).rvs(nrows)
     b = np.ones(nrows)* 2
 
     X = pd.DataFrame([x1,x2,x3,b]).transpose()
@@ -104,9 +106,9 @@ def generate_normal_data(nrows, data_type, output_path=""):
 
 def generate_uniform_data(nrows, data_type, output_path = ""):
     
-    x1 = np.array(-10 + np.random.random((nrows))*10)
-    x2 = np.array(-10 + np.random.random((nrows))*10)
-    x3 = np.array(-10 + np.random.random((nrows))*10)
+    x1 = np.array(np.random.uniform(low=-10, high=10, size=nrows))
+    x2 = np.array(np.random.uniform(low=-10, high=10, size=nrows))
+    x3 = np.array(np.random.uniform(low=-10, high=10, size=nrows))
     b = np.ones(nrows)* 2
 
     X = pd.DataFrame([x1,x2,x3,b]).transpose()
