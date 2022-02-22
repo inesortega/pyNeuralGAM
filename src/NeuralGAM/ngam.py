@@ -3,9 +3,10 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error
 import tensorflow as tf
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, LeakyReLU
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam, SGD
+from tensorflow.keras.regularizers import l1_l2
 TfInput = Union[np.ndarray, tf.Tensor]
 import dill
 import os
@@ -18,7 +19,6 @@ class NeuralGAM(tf.keras.Model):
     def __init__(self,
                 num_inputs,
                 num_units,
-                convergence_threshold,
                 **kwargs):
         """Initializes NeuralGAM hyperparameters.
 
@@ -34,7 +34,6 @@ class NeuralGAM(tf.keras.Model):
         self._kwargs = kwargs
         self.feature_networks = [None] * self._num_inputs
         self.training_mse = list()
-        self.convergence_threshold = convergence_threshold
         self.y = None
         self.build()
 
@@ -46,15 +45,12 @@ class NeuralGAM(tf.keras.Model):
         # add input layer
         model.add(Dense(1))
         # The Hidden Layers :
-        model.add(Dense(256, kernel_initializer='glorot_uniform', activation='relu'))
-        model.add(Dense(128, kernel_initializer='glorot_uniform', activation='relu'))
-        model.add(Dense(64, kernel_initializer='glorot_uniform', activation='relu'))
-        model.add(Dense(32, kernel_initializer='glorot_uniform', activation='relu'))
+        model.add(Dense(128, kernel_initializer='glorot_normal', activation='relu'))
+        model.add(Dense(128, kernel_initializer='glorot_normal', activation='relu'))
+        # model.add(Dense(64, kernel_initializer='glorot_uniform', activation='relu'))
         # add output layer
         model.add(Dense(1))
         # compile computing MSE with Adam optimizer
-        
-        opt = Adam(learning_rate=0.001, beta_2=0.8)
         model.compile(loss='mean_squared_error', optimizer="adam", metrics=['mean_absolute_error'])
 
         return model
@@ -65,14 +61,15 @@ class NeuralGAM(tf.keras.Model):
         for i in range(self._num_inputs):
             self.feature_networks[i] = self.build_feature_NN()
 
-    def fit(self, X_train, y_train, max_iter):
+    def fit(self, X_train, y_train, max_iter, convergence_threshold):
         converged = False
         
         self.beta = y_train.mean()
             
         f = X_train*0
+        g = f
         index = f.columns.values
-        CONVERGENCE_THRESHOLD = 0.1
+        DELTA_THRESHOLD = 0.01  # for uniform data convergence threshold 0.001 is enough
         it = 0
         
         # Make the data be zero-mean
@@ -85,29 +82,30 @@ class NeuralGAM(tf.keras.Model):
                 idk = (list(range(0,k,1))+list(range(k+1,len(X_train.columns),1)))    # Get idx of columns != k
                 
                 # Compute the partial residual
-                residuals = Z - f[index[idk]].sum(axis=1)
+                residuals = Z - g[index[idk]].sum(axis=1)
                 # Fit network k with X_train[k] towards residuals
-                self.feature_networks[k].fit(X_train[X_train.columns[k]],residuals, epochs=2, ) 
+                self.feature_networks[k].fit(X_train[X_train.columns[k]], residuals, epochs=1) 
                 
                 # Update f with current learned function for predictor k -- get f ready for compute residuals at next iteration
                 f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
                 f[index[k]] = f[index[k]] - np.mean(f[index[k]])  
             
+            g = f
             #compute how far we are from estimating y_train
-            err = mean_squared_error(Z, f.sum(axis=1))
+            err = mean_squared_error(Z, g.sum(axis=1))
             self.training_mse.append(err)
             mse_delta = np.abs(self.training_mse[it] - self.training_mse[it-1])
             print("ITERATION#{0}: Current MSE = {1}".format(it, err))
             print("ITERATION#{0}: MSE delta with prev iteration = {1}".format(it, mse_delta))
             
-            if err < CONVERGENCE_THRESHOLD and it > 0:
+            if err < convergence_threshold and mse_delta < DELTA_THRESHOLD and it > 0:
                 print("Z and f(x) converged...")
                 converged = True
             
             it+=1
             
         # Reconstruct y = sum(f) + beta
-        y = self.beta + f.sum(axis=1)
+        y = self.beta + g.sum(axis=1)
         self.y = y
         
         return y, self.training_mse

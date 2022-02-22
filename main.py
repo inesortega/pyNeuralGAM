@@ -61,8 +61,8 @@ if __name__ == "__main__":
     if not __debug__ and os.path.isfile(path + "/model.ngam"):
         ngam = load_model(path + "/model.ngam")
     else:
-        ngam = NeuralGAM(num_inputs = len(X_train.columns), num_units=100, convergence_threshold=1)
-        ycal, mse = ngam.fit(X_train = X_train, y_train = y_train, max_iter = 100)
+        ngam = NeuralGAM(num_inputs = len(X_train.columns), num_units=100)
+        ycal, mse = ngam.fit(X_train = X_train, y_train = y_train, max_iter = 100, convergence_threshold=0.01)
         ngam.save_model(path)
         print("Achieved RMSE during training = {0}".format(mean_squared_error(y_train, ngam.y, squared=False)))
         
