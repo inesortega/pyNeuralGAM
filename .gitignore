@@ -1,0 +1,8 @@
+env
+venv
+.idea
+.env
+__pycache__
+.vscode/settings.json
+*.ngam
+results
