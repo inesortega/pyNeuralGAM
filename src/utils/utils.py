@@ -78,8 +78,8 @@ def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
     if data_type == "homoscedastic":
         err = np.random.normal(loc=0, scale=0.2, size=nrows)
     elif data_type == "heteroscedastic":
-        x_mean = X.mean(axis=1)
-        err = np.random.normal(loc=0, scale=np.abs(0.1*x_mean), size=nrows)
+        x_sum = X.sum(axis=1)
+        err = np.random.normal(loc=0, scale=np.abs(0.01*x_sum), size=nrows)
 
     print("\n Intercept: {0} data".format(data_type))
     print(pd.DataFrame(err).describe())
