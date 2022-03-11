@@ -1,3 +1,5 @@
+import itertools
+import math
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
 
@@ -23,6 +25,76 @@ def plot_predicted_vs_real(dataframe_list: list, legends: list, title:str, outpu
         axs[i].grid()
         axs[i].set_title(legends[i])
 
+    if output_path:
+        plt.savefig(output_path, dpi = 100)
+        fig = plt.gcf()
+        plt.show(block=False)
+
+def plot_confusion_matrix(cm, classes,
+                        output_file,
+                        title='Confusion matrix',
+                        cmap=plt.cm.tab20c):
+    """
+    Plot confusion matrix
+    :param cm: (numpy) confusion matrix values
+    :param output_file: (string) path to output file
+    :param title: (string) plot title
+    :param cmap: (cmap) color map to use
+    :return: None
+
+    FROM https://deeplizard.com/learn/video/km7pxKy4UHU
+    """
+    fig, axs = plt.subplots(1, 1)
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    print("Confusion Matrix: ")
+    print(cm)
+
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], '.4f'),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.savefig(output_file)
+    plt.show(block=False)
+
+def plot_y_histogram(dataframe_list: list, legends: list, title:str, output_path=None):
+    fig, axs = plt.subplots(1, len(dataframe_list))
+    fig.suptitle(title, fontsize=16)
+    for i, term in enumerate(dataframe_list):
+        #r_values = list(range(dataframe_list[i].shape[0]))
+        axs[i].hist(dataframe_list[i])
+        axs[i].grid()
+        axs[i].set_title(legends[i])
+    
+    if output_path:
+        plt.savefig(output_path, dpi = 100)
+        fig = plt.gcf()
+        plt.show(block=False)
+    
+def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_path=None):
+    fig, axs = plt.subplots(nrows=1, ncols=len(f_list[0].columns))
+    fig.suptitle(title, fontsize=16)
+    for i, term in enumerate(f_list[0].columns):
+        data = pd.DataFrame()
+        for j in range(len(x_list)):
+            data['x'] = x_list[j][x_list[j].columns[i]]
+            data['y']= f_list[j][f_list[j].columns[i]]
+            sns.lineplot(data = data, x='x', y='y', ax=axs[i])
+        
+        axs[i].legend(legends)
+        axs[i].grid()
+        axs[i].set_title("f[{0}]".format(i))
+    
     if output_path:
         plt.savefig(output_path, dpi = 100)
         fig = plt.gcf()
@@ -86,49 +158,57 @@ def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
     return err
 
 
-def generate_normal_data(nrows, data_type, output_path=""):
+def generate_normal_data(nrows, data_type, link, output_path=""):
     
-    x1 = truncnorm(a=-10, b=10, loc=0.0, scale=1.0).rvs(nrows)
-    x2 = truncnorm(a=-10, b=10, loc=0.0, scale=1.0).rvs(nrows)
-    x3 = truncnorm(a=-10, b=10, loc=0.0, scale=1.0).rvs(nrows)
-    b = np.ones(nrows)* 2
+    x1 = truncnorm(a=-5, b=5, loc=0.0, scale=1.0).rvs(nrows)
+    x2 = truncnorm(a=-5, b=5, loc=0.0, scale=1.0).rvs(nrows)
+    x3 = truncnorm(a=-5, b=5, loc=0.0, scale=1.0).rvs(nrows)
 
-    X = pd.DataFrame([x1,x2,x3,b]).transpose()
-    X_func = pd.DataFrame([x1*x1, 2*x2, np.sin(x3), b]).transpose()
-    plot_partial_dependencies(X, X_func, "Original f(x)", output_path=output_path + "/original_f.png")
+    X = pd.DataFrame([x1,x2,x3]).transpose()
+    fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
+    plot_partial_dependencies(X, fs, "Original f(x)", output_path=output_path + "/original_f.png")
     
-    print("y = f(x1) + f(x2) + f(x3) + b =  x1^2 + 2x2 + sin(x3) + b")
+    beta0 = generate_err(nrows=nrows, data_type=data_type, X=X)
+    print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3)")
     
-    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3) + b)
-    err = generate_err(nrows=nrows, data_type=data_type, X=X)
-    y = y + err
-    return X, y
-
-def generate_uniform_data(nrows, data_type, output_path = ""):
+    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3))
+    y = y + beta0
     
-    x1 = np.array(np.random.uniform(low=-10, high=10, size=nrows))
-    x2 = np.array(np.random.uniform(low=-10, high=10, size=nrows))
-    x3 = np.array(np.random.uniform(low=-10, high=10, size=nrows))
-    b = np.ones(nrows)* 2
+    if link == "binomial":
+        # Apply a logit link function to transform y to binomial [0,1]
+        y = pd.Series(np.exp(y)/(1+np.exp(y)))
+    
+    return X, y, fs
 
-    X = pd.DataFrame([x1,x2,x3,b]).transpose()
-    X_func = pd.DataFrame([x1*x1, 2*x2, np.sin(x3), b]).transpose()
-    plot_partial_dependencies(X, X_func, "Original f(x)", output_path=output_path + "/original_f.png")
-    print("y = f(x1) + f(x2) + f(x3) + b =  x1^2 + 2x2 + sin(x3) + b")
+def generate_uniform_data(nrows, data_type, link, output_path = ""):
+    
+    x1 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
+    x2 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
+    x3 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
+    
+    X = pd.DataFrame([x1,x2,x3]).transpose()
+    fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
+    plot_partial_dependencies(X, fs, "Original f(x)", output_path=output_path + "/original_f.png")
+    
+    beta0 = generate_err(nrows=nrows, data_type=data_type, X=X)
+    print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3)")
 
-    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3) + b)
-    err = generate_err(nrows=nrows, data_type=data_type, X=X)
+    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3))
+    y = y + beta0
 
-    y = y + err
+    if link == "binomial":
+        # Apply a logit link function to transform y to binomial [0,1]
+        y = pd.Series(np.exp(y)/(1+np.exp(y)))
+        
+    return X, y, fs
 
-    return X, y
 
-
-def generate_data(data_type, distribution, nrows=25000, output_folder = ""):
+def generate_data(data_type, distribution, link, nrows=25000, output_folder = ""):
     """
         Returns a pair of X,y to be used with NeuralGAM
         :param: data_type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
         :param: distribution: generate normal or uniform distributed X data {uniform, normal}
+        :param: link: generate reponse Y in a continuous or binomial distribution
         :param: nrows: data size (number of rows)
         :param: output_folder: folder path to save the generated files locally in CSV format
         :return: X: pandas Dataframe object with generated X (one column per feature). Xs follow a normal distribution
@@ -136,12 +216,12 @@ def generate_data(data_type, distribution, nrows=25000, output_folder = ""):
     """
     
     if distribution == "uniform":
-        X, y = generate_uniform_data(nrows, data_type, output_path=output_folder)
+        X, y, fs = generate_uniform_data(nrows, data_type, link, output_path=output_folder)
 
     elif distribution == "normal":
-        X, y = generate_normal_data(nrows, data_type, output_path=output_folder)   
+        X, y, fs = generate_normal_data(nrows, data_type, link, output_path=output_folder)   
 
-    return X, y
+    return X, y, fs
     
 def compute_edf(a: pd.Series, b: pd.Series):
     return scipy.stats.ttest_rel(a, b)
