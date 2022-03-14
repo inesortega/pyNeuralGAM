@@ -218,10 +218,10 @@ def generate_data(type, distribution, link, nrows=25000, output_folder = ""):
     """
     
     if distribution == "uniform":
-        X, y, fs = generate_uniform_data(nrows, data_type, link, output_path=output_folder)
+        X, y, fs = generate_uniform_data(nrows, type, link, output_path=output_folder)
 
     elif distribution == "normal":
-        X, y, fs = generate_normal_data(nrows, data_type, link, output_path=output_folder)   
+        X, y, fs = generate_normal_data(nrows, type, link, output_path=output_folder)   
 
     return X, y, fs
     
