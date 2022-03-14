@@ -14,7 +14,7 @@ parser.add_argument(
     "--type",
     default="homoscedastic",
     metavar="{homoscedastic, heteroscedastic} ",
-    dest="data_type",
+    dest="type",
     type=str,
     help="""Choose wether to generate a homoscesdastic or heteroscedastic dataset"""
 )
@@ -53,22 +53,24 @@ if __name__ == "__main__":
     args = parser.parse_args()
     variables = vars(args)
     
-    data_type = variables["data_type"]
+    type = variables["type"]
     distribution = variables["distribution"]
     link = variables["link"]
     
     print(variables)
     
-    path = os.path.normpath(os.path.abspath("./results_test/{0}_{1}_{2}".format(data_type, distribution, link)))
+    path = os.path.normpath(os.path.abspath("./results/{0}_{1}_{2}".format(type, distribution, link)))
     if not os.path.exists(path):
         os.mkdir(path)
         
-    X, y, fs = generate_data(nrows=25000, data_type=data_type, distribution=distribution, link=link, output_folder=path)
+    X, y, fs = generate_data(nrows=25000, type=type, distribution=distribution, link=link, output_folder=path)
     
     print("X")
     print(X.describe())
     print("\ny")
     print(y)
+    
+    print("\n Number of elements per class on training set")
     print(pd.DataFrame(np.where(y >= 0.5, 1, 0)).value_counts())
     X_train, X_test, y_train, y_test = split(X, y)
     
@@ -87,7 +89,8 @@ if __name__ == "__main__":
     training_fs = ngam.get_partial_dependencies(X_train)
     test_fs = ngam.get_partial_dependencies(X_test)
     
-    print("Finished predictions...Plotting results...")
+    print("Finished predictions...Plotting results... ")
+    print(variables)
     if link == "binomial":
         x_list = [X_train, X_test]
         fs_list = [training_fs, test_fs]
@@ -125,6 +128,7 @@ if __name__ == "__main__":
     x_list = [X, X_train, X_test]
     fs_list = [fs, training_fs, test_fs]
     legends = ["X", "X_train", "X_test"]
+    
     plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title="MSE = {0}".format(mse), output_path=path + "/functions.png")
     
     plt.show()

@@ -12,8 +12,8 @@ import scipy
 from scipy.stats import truncnorm
 
 #todo delete in prod!!
-np.random.seed = 343142
-  
+np.random.seed(343142)
+
 """ PLOTTING aux functions """
 def plot_predicted_vs_real(dataframe_list: list, legends: list, title:str, output_path=None):
     fig, axs = plt.subplots(1, len(dataframe_list))
@@ -157,12 +157,14 @@ def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
     print(err)
     return err
 
-
+def get_truncated_normal(mean=0, sd=1, low=0, upp=10, nrows=25000):
+    return truncnorm((low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd).rvs(nrows)
+    
 def generate_normal_data(nrows, data_type, link, output_path=""):
     
-    x1 = truncnorm(a=-5, b=5, loc=0.0, scale=1.0).rvs(nrows)
-    x2 = truncnorm(a=-10, b=5, loc=0.0, scale=1.0).rvs(nrows)
-    x3 = truncnorm(a=-5, b=5, loc=0.0, scale=1.0).rvs(nrows)
+    x1 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
+    x2 = get_truncated_normal(mean=-0.5, sd=1.0, low=-5, upp=5, nrows=nrows)
+    x3 = get_truncated_normal(mean=0.0, sd=1.0, low=-10, upp=5, nrows=nrows)
 
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
@@ -203,10 +205,10 @@ def compute_y(x, beta0, link):
         y = pd.Series(np.exp(y)/(1+np.exp(y)))
     return y
 
-def generate_data(data_type, distribution, link, nrows=25000, output_folder = ""):
+def generate_data(type, distribution, link, nrows=25000, output_folder = ""):
     """
         Returns a pair of X,y to be used with NeuralGAM
-        :param: data_type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
+        :param: type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
         :param: distribution: generate normal or uniform distributed X data {uniform, normal}
         :param: link: generate reponse Y in a continuous or binomial distribution
         :param: nrows: data size (number of rows)
