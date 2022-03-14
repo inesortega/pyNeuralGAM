@@ -170,7 +170,7 @@ def generate_normal_data(nrows, data_type, link, output_path=""):
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
     
     beta0 = generate_err(nrows=nrows, data_type=data_type, X=X)
-    print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3) + cos(x4) + tan(x5)")
+    print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3)")
     
     if link == "binomial":
         plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
