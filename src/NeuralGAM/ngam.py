@@ -1,4 +1,5 @@
 from typing import Union
+from matplotlib.axis import YAxis
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error
@@ -19,7 +20,7 @@ class NeuralGAM(tf.keras.Model):
 
     def __init__(self,
                 num_inputs,
-                num_units,
+                link,
                 **kwargs):
         """Initializes NeuralGAM hyperparameters.
 
@@ -31,7 +32,7 @@ class NeuralGAM(tf.keras.Model):
         """
         super(NeuralGAM, self).__init__()
         self._num_inputs = num_inputs
-        self._num_units = num_units
+        self.link = link
         self._kwargs = kwargs
         self.feature_networks = [None] * self._num_inputs
         self.training_mse = list()
@@ -52,7 +53,7 @@ class NeuralGAM(tf.keras.Model):
         # add output layer
         model.add(Dense(1))
         # compile computing MSE with Adam optimizer
-        model.compile(loss='mean_squared_error', optimizer="adam", metrics=['mean_absolute_error'])
+        model.compile(loss="mean_squared_error", optimizer="adam", metrics=['mean_absolute_error'])
 
         return model
 
@@ -70,7 +71,7 @@ class NeuralGAM(tf.keras.Model):
         f = X_train*0
         g = f
         index = f.columns.values
-        DELTA_THRESHOLD = 0.01  # for uniform data convergence threshold 0.001 is enough
+        DELTA_THRESHOLD = 0.001
         it = 0
         
         # Make the data be zero-mean
@@ -99,7 +100,7 @@ class NeuralGAM(tf.keras.Model):
             print("ITERATION#{0}: Current MSE = {1}".format(it, err))
             print("ITERATION#{0}: MSE delta with prev iteration = {1}".format(it, mse_delta))
             
-            if err < convergence_threshold and it > 0:
+            if (err < convergence_threshold or mse_delta < DELTA_THRESHOLD) and it > 0:
                 print("Z and f(x) converged...")
                 converged = True
             
@@ -121,8 +122,8 @@ class NeuralGAM(tf.keras.Model):
     def predict(self, X: pd.DataFrame):
         """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
         output = self.get_partial_dependencies(X)
-        y_pred = output.sum(axis=1)  + self.beta
-        return y_pred
+        y = output.sum(axis=1) + self.beta
+        return y
     
     def save_model(self, output_path):
         if not os.path.exists(output_path):
