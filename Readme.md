@@ -7,6 +7,8 @@
 
 NeuralGAM is a project for Generalized Additive Models (GAM) research. We provide a library which implements Neural GAMs: a way of fitting a Generalized Additive Model by learning a linear combination of Deep Neural Networks. GAMs are a class of non-parametric regression models, where each input feature is a smooth function. 
 
+$y = beta_0 + \sum_{i=1}^{N} f_i(x)$
+
 Each neural network attends to a single input feature. The NeuralGAM is fitted using the backfitting algorithm, where a Deep Neural Network is fitted one epoch at a time to learn a smooth function representing the smottthed fit for the residuals of all the others variables. 
 
 ## Overview
@@ -26,7 +28,11 @@ We provide scripts to generate simulation data to test NeuralGAM for regression 
 | distibution   | distribution of the X                          | {normal, uniform} 
 | link          | Link function to apply (binomial for classification problems, identity for regression) | {identity, link}                   |
 
-The fitting parameters are the maximum number of iterations to wait for function convergence (defaults to 5), and the convergence threshold (defaults to 0.04): when this value is reached on the Mean Squared Error between the target variable (y) and the current linear combination of learned features, the backfitting algorithm is stoped to avoid overfitting.  
+The fitting parameters are the maximum number of iterations to wait for function convergence (defaults to 5), and the convergence threshold (defaults to 0.04): when this value is reached on the Mean Squared Error between the target variable (y) and the current linear combination of learned features, the backfitting algorithm is stoped to avoid overfitting.
+
+The simulation generates three different features, each modeling a function plus an intercept term, being the final theoretical model: 
+
+$ y = beta_0 + x_1^2 + 2*x_2 + \sin(x_3) $
 
 ```python
 
@@ -49,16 +55,20 @@ y_pred = np.where(y_pred >= 0.5, 1, 0)
 ## NeuralGAM Visualization
 
 The function `get_partial_dependencies´ provides the learned functions of the NeuralGAM model  after fitting: 
+
 ```python
 test_fs = ngam.get_partial_dependencies(X_test)
 training_fs = ngam.get_partial_dependencies(X_train)
 
-x_list = [X_train, X_test]
-fs_list = [training_fs, test_fs]
-legends = ["X_train", "X_test"]
+x_list = [X, X_train, X_test]
+fs_list = [fs, training_fs, test_fs]
+legends = ["theoretical_f", "X_train", "X_test"]
 plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title="MSE = {0}".format(mse), output_path=path + "/partial_dep.png")
 ```
 
+The plot shows the theoretical model from the dataset (in blue), the learned functions for each feature after the training process (orange), and the predicted functions from the test set (green), for a regression simulation with heteroscedastic intercept and normally distributed data. 
+
+![](functions.png)
 ## Usage
 
 ```bash
