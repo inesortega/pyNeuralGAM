@@ -7,7 +7,7 @@
 
 NeuralGAM is a project for Generalized Additive Models (GAM) research. We provide a library which implements Neural GAMs: a way of fitting a Generalized Additive Model by learning a linear combination of Deep Neural Networks. GAMs are a class of non-parametric regression models, where each input feature is a smooth function. 
 
-Each neural network attends to a single input feature. The GAM is fitted using the backfitting algorithm, where a Deep Neural Network is fitted to learn a smooth function representing the smottthed fit for the residuals of all the others variables. 
+Each neural network attends to a single input feature. The NeuralGAM is fitted using the backfitting algorithm, where a Deep Neural Network is fitted one epoch at a time to learn a smooth function representing the smottthed fit for the residuals of all the others variables. 
 
 ## Overview
 
@@ -18,7 +18,7 @@ from src.utils.utils import generate_data, plot_multiple_partial_dependencies
 
 ##### Generate sample data
 
-We provide scripts to generate datasets for testing NeuralGAM for regression and classification problems. 
+We provide scripts to generate simulation data to test NeuralGAM for regression and classification problems. 
 
 | Parameter     | Description                                    | Values |
 | -----------   | ---------------------------------------------- | ------------------------- |
@@ -26,6 +26,7 @@ We provide scripts to generate datasets for testing NeuralGAM for regression and
 | distibution   | distribution of the X                          | {normal, uniform} 
 | link          | Link function to apply (binomial for classification problems, identity for regression) | {identity, link}                   |
 
+The fitting parameters are the maximum number of iterations to wait for function convergence (defaults to 5), and the convergence threshold (defaults to 0.04): when this value is reached on the Mean Squared Error between the target variable (y) and the current linear combination of learned features, the backfitting algorithm is stoped to avoid overfitting.  
 
 ```python
 
