@@ -7,15 +7,13 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import numpy as np
-from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 import scipy
-from src.NeuralGAM.ngam import NeuralGAM, load_model
 from scipy.stats import truncnorm
 
 #todo delete in prod!!
-np.random.seed = 42
-      
+np.random.seed(343142)
+
 """ PLOTTING aux functions """
 def plot_predicted_vs_real(dataframe_list: list, legends: list, title:str, output_path=None):
     fig, axs = plt.subplots(1, len(dataframe_list))
@@ -99,7 +97,8 @@ def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_pa
         plt.savefig(output_path, dpi = 100)
         fig = plt.gcf()
         plt.show(block=False)
-    
+
+
 def plot_partial_dependencies(x, fs, title:str, output_path=None):
     fig, axs = plt.subplots(nrows=1, ncols=len(fs.columns))
     fig.suptitle(title, fontsize=16)
@@ -155,58 +154,61 @@ def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
 
     print("\n Intercept: {0} data".format(data_type))
     print(pd.DataFrame(err).describe())
+    print(err)
     return err
 
-
+def get_truncated_normal(mean=0, sd=1, low=0, upp=10, nrows=25000):
+    return truncnorm((low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd).rvs(nrows)
+    
 def generate_normal_data(nrows, data_type, link, output_path=""):
     
-    x1 = truncnorm(a=-5, b=5, loc=0.0, scale=1.0).rvs(nrows)
-    x2 = truncnorm(a=-5, b=5, loc=0.0, scale=1.0).rvs(nrows)
-    x3 = truncnorm(a=-5, b=5, loc=0.0, scale=1.0).rvs(nrows)
+    x1 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
+    x2 = get_truncated_normal(mean=-0.5, sd=1.0, low=-5, upp=5, nrows=nrows)
+    x3 = get_truncated_normal(mean=0.0, sd=1.0, low=-10, upp=5, nrows=nrows)
 
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-    plot_partial_dependencies(X, fs, "Original f(x)", output_path=output_path + "/original_f.png")
     
     beta0 = generate_err(nrows=nrows, data_type=data_type, X=X)
     print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3)")
     
-    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3))
-    y = y + beta0
-    
     if link == "binomial":
-        # Apply a logit link function to transform y to binomial [0,1]
-        y = pd.Series(np.exp(y)/(1+np.exp(y)))
+        plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
     
+    y = compute_y(x1*x1 + 2*x2 + np.sin(x3), beta0, link)
     return X, y, fs
 
 def generate_uniform_data(nrows, data_type, link, output_path = ""):
     
     x1 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
-    x2 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
+    x2 = np.array(np.random.uniform(low=-10, high=5, size=nrows))
     x3 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-    plot_partial_dependencies(X, fs, "Original f(x)", output_path=output_path + "/original_f.png")
     
+    if link == "binomial":
+        plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
+        
     beta0 = generate_err(nrows=nrows, data_type=data_type, X=X)
     print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3)")
 
-    y = pd.Series(x1*x1 + 2*x2 + np.sin(x3))
-    y = y + beta0
-
-    if link == "binomial":
-        # Apply a logit link function to transform y to binomial [0,1]
-        y = pd.Series(np.exp(y)/(1+np.exp(y)))
-        
+    y = compute_y(x1*x1 + 2*x2 + np.sin(x3), beta0, link)
     return X, y, fs
 
 
-def generate_data(data_type, distribution, link, nrows=25000, output_folder = ""):
+def compute_y(x, beta0, link):
+    y = pd.Series(x)
+    y = y + beta0   
+    if link == "binomial":
+        # Apply a logit link function to transform y to binomial [0,1]
+        y = pd.Series(np.exp(y)/(1+np.exp(y)))
+    return y
+
+def generate_data(type, distribution, link, nrows=25000, output_folder = ""):
     """
         Returns a pair of X,y to be used with NeuralGAM
-        :param: data_type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
+        :param: type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
         :param: distribution: generate normal or uniform distributed X data {uniform, normal}
         :param: link: generate reponse Y in a continuous or binomial distribution
         :param: nrows: data size (number of rows)
