@@ -165,12 +165,12 @@ def generate_normal_data(nrows, data_type, link, output_path=""):
     x1 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x2 = get_truncated_normal(mean=-0.5, sd=1.0, low=-5, upp=5, nrows=nrows)
     x3 = get_truncated_normal(mean=0.0, sd=1.0, low=-10, upp=5, nrows=nrows)
-
+    
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
     
     beta0 = generate_err(nrows=nrows, data_type=data_type, X=X)
-    print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3)")
+    print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3) + cos(x4) + tan(x5)")
     
     if link == "binomial":
         plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
