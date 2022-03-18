@@ -107,11 +107,17 @@ class NeuralGAM(tf.keras.Model):
             it+=1
             
         # Reconstruct y = sum(f) + beta
-        y = self.beta + g.sum(axis=1)
-        self.y = y
+        y = g.sum(axis=1)       
+        self.y = self.beta + y
         
-        return y, self.training_mse
+        return self.y, self.training_mse
 
+    
+    def trim_data(self, y):
+        y = np.where(y<0, 0, y)
+        y = np.where(y>1, 1, y)
+        return y
+    
     def get_partial_dependencies(self, X: pd.DataFrame):
         """ Compute the partial dependencies for each feature in X"""
         output = pd.DataFrame(columns=range(len(X.columns)))
@@ -130,6 +136,7 @@ class NeuralGAM(tf.keras.Model):
             os.mkdir(output_path)
         with open(output_path + "/model.ngam", "wb") as file:
             dill.dump(self, file, dill.HIGHEST_PROTOCOL)
+            return output_path + "/model.ngam"
        
           
 def load_model(model_path) -> NeuralGAM:
