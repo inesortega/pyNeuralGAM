@@ -75,7 +75,7 @@ class NeuralGAM(tf.keras.Model):
         it = 0
         
         # Make the data be zero-mean
-        Z = y_train - self.beta
+        #Z = y_train - self.beta
         
         # Track the squared error of the estimates
         while not converged and it < max_iter:
@@ -84,17 +84,17 @@ class NeuralGAM(tf.keras.Model):
                 idk = (list(range(0,k,1))+list(range(k+1,len(X_train.columns),1)))    # Get idx of columns != k
                 
                 # Compute the partial residual
-                residuals = Z - g[index[idk]].sum(axis=1)
+                residuals = y_train - (self.beta + g[index[idk]].sum(axis=1))
                 # Fit network k with X_train[k] towards residuals
                 self.feature_networks[k].fit(X_train[X_train.columns[k]], residuals, epochs=1) 
                 
                 # Update f with current learned function for predictor k -- get f ready for compute residuals at next iteration
                 f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
-                # f[index[k]] = f[index[k]] - np.mean(f[index[k]])  
+                f[index[k]] = f[index[k]] - np.mean(f[index[k]])  
             
             g = f
             #compute how far we are from estimating y_train
-            err = mean_squared_error(Z, g.sum(axis=1))
+            err = mean_squared_error(y_train - self.beta, g.sum(axis=1))
             self.training_mse.append(err)
             mse_delta = np.abs(self.training_mse[it] - self.training_mse[it-1])
             print("ITERATION#{0}: Current MSE = {1}".format(it, err))
@@ -107,17 +107,10 @@ class NeuralGAM(tf.keras.Model):
             it+=1
             
         # Reconstruct y = sum(f) + beta
-        y = g.sum(axis=1)       
-        self.y = self.beta + y
+        self.y = g.sum(axis=1) + self.beta
         
-        return self.y, self.training_mse
+        return
 
-    
-    def trim_data(self, y):
-        y = np.where(y<0, 0, y)
-        y = np.where(y>1, 1, y)
-        return y
-    
     def get_partial_dependencies(self, X: pd.DataFrame):
         """ Compute the partial dependencies for each feature in X"""
         output = pd.DataFrame(columns=range(len(X.columns)))

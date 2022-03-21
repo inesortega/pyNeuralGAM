@@ -20,20 +20,17 @@ from src.utils.utils import generate_data, plot_multiple_partial_dependencies
 
 ##### Generate sample data
 
-We provide scripts to generate simulation data to test NeuralGAM for linear/binomial regression problems. 
+We provide scripts to generate simulation data to test NeuralGAM for linear/logistic regression problems. 
 
 | Parameter     | Description                                    | Values |
 | -----------   | ---------------------------------------------- | ------------------------- |
+| GAM type      | Linear or Logistic Regress) | {identity, binomial}                   |
 | type          | homogeneity of variance on the intercept term  | {homoscedastic, heteroscedastic}       |
 | distibution   | distribution of the X                          | {normal, uniform} 
-| link          | Link function to apply (binomial regression or identity for linear regression) | {identity, binomial}                   |
 
 The fitting parameters are the maximum number of iterations to wait for function convergence (defaults to 5), and the convergence threshold (defaults to 0.04): when this value is reached on the Mean Squared Error between the target variable (y) and the current linear combination of learned features, the backfitting algorithm is stoped to avoid overfitting.
 
-The simulation generates three different features, each modeling a function plus an intercept term, being the final theoretical model: 
-
-![formula-2](https://latex.codecogs.com/svg.image?\inline&space;y&space;=&space;beta_0&space;&plus;&space;x_1^2&space;&plus;&space;2*x_2&space;&plus;&space;\sin(x_3)&space;)
-
+The simulation generates three different features, each modeling a function. 
 ```python
 
 X, y, fs = generate_data(nrows=25000, type=type, distribution=distribution, link=link, output_folder=path)
@@ -44,11 +41,6 @@ ycal, mse = ngam.fit(X_train = X_train, y_train = y_train, max_iter = 5, converg
 ngam.save_model(path)
 
 y_pred = ngam.predict(X_test)
-
-# For classification problems, transform into classes (0 or 1) using numpy:
-
-y_test = np.where(y_test >= 0.5, 1, 0)
-y_pred = np.where(y_pred >= 0.5, 1, 0) 
 
 ```
 
@@ -73,14 +65,17 @@ The following image shows the resultant theoretical model from the dataset (in b
 
 ```bash
 $ python main.py -h
-usage: main.py [-h] [-t {homoscedastic, heteroscedastic}] [-d {uniform, normal}] [-l {identity, binomial}]
+usage: main.py [-h] {linear,logistic} ...
+
+positional arguments:
+  {linear,logistic}  Choose wether to build Linear (linear) or Logistic (logistic) Regression
+    linear           Linear Regression
+    logistic         Logistic Regression
 
 optional arguments:
   -h, --help            show this help message and exit
   -t {homoscedastic, heteroscedastic} , --type {homoscedastic, heteroscedastic} 
-                        Choose wether to generate a homoscesdastic or heteroscedastic dataset
+                        Choose wether to generate a homoscesdastic or heteroscedastic epsilon term (only with Linear Regression)
   -d {uniform, normal} , --distribution {uniform, normal} 
-                        Choose wether to generate normal or uniform distributed dataset
-  -l {identity, binomial} , --link {identity, binomial} 
-                        Choose wether the response Y is continuous (for regression problems) or binomial (for classification)
+                        Choose wether to generate normal or uniform distributed dataset 
 ```

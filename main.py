@@ -6,19 +6,24 @@ import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix, mean_squared_error
 from src.utils.utils import generate_data, plot_confusion_matrix, plot_multiple_partial_dependencies, plot_predicted_vs_real, plot_partial_dependencies, plot_y_histogram, split
 from src.NeuralGAM.ngam import NeuralGAM, load_model
-
+import mlflow
+from sklearn.metrics import mean_squared_error
+        
 parser = argparse.ArgumentParser()
 
-parser.add_argument(
+subparsers = parser.add_subparsers(help='Choose wether to use Linear (linear) or Logistic (logistic) Regression')
+
+linear_regression_parser = subparsers.add_parser(name='linear', help="Linear Regression")
+linear_regression_parser.add_argument(
     "-t",
     "--type",
     default="homoscedastic",
     metavar="{homoscedastic, heteroscedastic} ",
     dest="type",
     type=str,
-    help="""Choose wether to generate a homoscesdastic or heteroscedastic dataset"""
+    help="""Choose wether to generate a homoscesdastic or heteroscedastic epsilon term"""
 )
-parser.add_argument(
+linear_regression_parser.add_argument(
     "-d",
     "--distribution",
     default="uniform",
@@ -26,40 +31,64 @@ parser.add_argument(
     metavar="{uniform, normal} ",
     help="Choose wether to generate normal or uniform distributed dataset"
 )
-parser.add_argument(
-    "-l",
-    "--link",
-    default="identity",
-    type=str,
-    metavar="{identity, binomial} ",
-    help="Choose wether the response Y is continuous or binomial (0/1)"
-)
+linear_regression_parser.set_defaults(link='linear')
 
+logistic_regression_parser = subparsers.add_parser(name='logistic', help="Logistic Regression")
+logistic_regression_parser.add_argument(
+    "-d",
+    "--distribution",
+    default="uniform",
+    type=str,
+    metavar="{uniform, normal} ",
+    help="Choose wether to generate normal or uniform distributed dataset"
+)
+logistic_regression_parser.set_defaults(link='logistic')
+
+def setup_mlflow():
+    
+    MLFLOW_URI = "http://10.11.1.21:5000/"
+    MLFLOW_EXP = "iortega.neuralGAM"
+    # Setting the MLflow tracking server
+    mlflow.set_tracking_uri(MLFLOW_URI)
+    
+    # Setting the requried environment variables
+    os.environ['MLFLOW_S3_ENDPOINT_URL'] = 'http://minio:9001'
+    os.environ['AWS_ACCESS_KEY_ID'] = 'minio_user'
+    os.environ['AWS_SECRET_ACCESS_KEY'] = 'minio_root_pass'
+
+    exp = mlflow.get_experiment_by_name(MLFLOW_EXP)
+    if not exp:
+        mlflow.create_experiment(MLFLOW_EXP)
+    else:
+        if exp.lifecycle_stage == 'deleted':
+            from mlflow.tracking import MlflowClient
+            client = MlflowClient()
+            client.restore_experiment(exp.experiment_id)
+            print('{} deleted experiment recovered and ready to use'.format(MLFLOW_EXP))
+
+    mlflow.set_experiment(MLFLOW_EXP)
 
 if __name__ == "__main__":
     
     """ 
     USAGE 
     
-    Uniform distribution:
-        python main.py -t homoscedastic -d uniform
-        python main.py -t heteroscedastic -d uniform
-    
-    Normal Distribution:
-        python main.py -t homoscedastic -d uniform
-        python main.py -t heteroscedastic -d uniform
+    LINEAR REGRESSION: 
+        python main.py linear -t {homoscedastic, heteroscedastic} -d {uniform, normal}
+    LOGISTIC REGRESSION: 
+        python main.py logistic -d {uniform, normal}
     """
     
     args = parser.parse_args()
     variables = vars(args)
     
-    type = variables["type"]
+    type = variables.get("type", None)
     distribution = variables["distribution"]
     link = variables["link"]
     
     print(variables)
     
-    path = os.path.normpath(os.path.abspath("./results/{0}_{1}_{2}".format(type, distribution, link)))
+    path = os.path.normpath(os.path.abspath("./results_test/{0}_{1}_{2}".format(type, distribution, link)))
     if not os.path.exists(path):
         os.mkdir(path)
         
@@ -74,61 +103,71 @@ if __name__ == "__main__":
     print(pd.DataFrame(np.where(y >= 0.5, 1, 0)).value_counts())
     X_train, X_test, y_train, y_test = split(X, y)
     
-    if not __debug__ and os.path.isfile(path + "/model.ngam"):
-        ngam = load_model(path + "/model.ngam")
-    else:
-        ngam = NeuralGAM(num_inputs = len(X_train.columns), link=link)
-        ycal, mse = ngam.fit(X_train = X_train, y_train = y_train, max_iter = 5, convergence_threshold=0.04)
-        ngam.save_model(path)
-        print("Achieved RMSE during training = {0}".format(mean_squared_error(y_train, ngam.y, squared=False)))
+    with mlflow.start_run():
         
-    y_pred = ngam.predict(X_test)
-    from sklearn.metrics import mean_squared_error
-    mse = mean_squared_error(y_test, y_pred)
-    
-    training_fs = ngam.get_partial_dependencies(X_train)
-    test_fs = ngam.get_partial_dependencies(X_test)
-    
-    print("Finished predictions...Plotting results... ")
-    print(variables)
-    if link == "binomial":
-        x_list = [X_train, X_test]
-        fs_list = [training_fs, test_fs]
-        legends = ["X_train", "X_test"]
-        plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title="MSE = {0}".format(mse), output_path=path + "/functions_binomial.png")
+        if not __debug__ and os.path.isfile(path + "/model.ngam"):
+            ngam = load_model(path + "/model.ngam")
+        else:
+            ngam = NeuralGAM(num_inputs = len(X_train.columns), link=link)
+            ngam.fit(X_train = X_train, y_train = y_train, max_iter = 5, convergence_threshold=0.04)
+            ycal = ngam.y
+            training_mse = ngam.training_mse
+            model_path = ngam.save_model(path)
+            
+            #mlflow.log_artifact(model_path)
+            
+            print("Achieved RMSE during training = {0}".format(mean_squared_error(y_train, ngam.y, squared=False)))
+            
+        y_pred = ngam.predict(X_test)
         
-        legends = ["y_train", "y_test", "y_pred"]
-        plot_y_histogram([y_train, y_test, y_pred], legends=legends, title="MSE = {0}".format(mse))
-    
-        #Compute classification metrics - transform probabilities to 0-1
-        y_test = np.where(y_test >= 0.5, 1, 0)
-        y_pred = np.where(y_pred >= 0.5, 1, 0)
+        training_fs = ngam.get_partial_dependencies(X_train)
+        test_fs = ngam.get_partial_dependencies(X_test)
         
-        print(classification_report(y_true=y_test, y_pred=y_pred))
-        tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
-        cm_normalized = confusion_matrix(y_test, y_pred, normalize="true")
+        print("Finished predictions...Plotting results... ")
+        print(variables)
+        if link == "binomial":
+            
+            x_list = [X_train, X_test]
+            fs_list = [training_fs, test_fs]
+            legends = ["X_train", "X_test"]
+            plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=variables, output_path=path + "/functions_binomial.png")
+            
+            legends = ["y_train", "y_cal", "y_test", "y_pred"]
+            plot_y_histogram([y_train, ycal, y_test, y_pred], legends=legends, title=variables, output_path=path + "/y_histogram.png")
         
-        plot_confusion_matrix(cm_normalized, ['0', '1'],
-                                    path + '/confusion-matrix.png',
-                                    title='Confusion Matrix')
-        metrics = dict()
-        metrics["tp"] = tp
-        metrics["fp"] = fp
-        metrics["tn"] = tn
-        metrics["fn"] = fn
-        metrics["precision"] = tp / (tp + fp)
-        metrics["recall"] = tp / (tp + fn)
-        metrics["tnr"] = tn / (tn + fp)
-        metrics["accuracy"] = (metrics["tp"] + metrics["tn"]) / (metrics["tp"] + metrics["tn"] + metrics["fp"] + metrics["fn"])
-        metrics["f1"] = 2 * ((metrics["precision"]  * metrics["recall"]) / (metrics["precision"]  + metrics["recall"]))
-        
-        import pandas as pd
-        pd.DataFrame([metrics]).to_csv(path + '/classification-report.csv', index=False)
+            #Compute classification metrics - transform probabilities to binomial distrbution
+            # Get samples from binomial distribution - 1 trial, prob = y 
+            y_test = np.random.binomial(n=1, p = y_test, size=y_test.shape[0])
+            y_pred = np.random.binomial(n=1, p = y_pred, size=y_pred.shape[0])
+            
+            mse = mean_squared_error(y_test, y_pred)
+                   
+            print(classification_report(y_true=y_test, y_pred=y_pred))
+            tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+            cm_normalized = confusion_matrix(y_test, y_pred, normalize="true")
+            
+            plot_confusion_matrix(cm_normalized, ['0', '1'],
+                                        path + '/confusion-matrix.png',
+                                        title='Confusion Matrix')
+            metrics = dict()
+            metrics["tp"] = tp
+            metrics["fp"] = fp
+            metrics["tn"] = tn
+            metrics["fn"] = fn
+            metrics["precision"] = tp / (tp + fp)
+            metrics["recall"] = tp / (tp + fn)
+            metrics["tnr"] = tn / (tn + fp)
+            metrics["accuracy"] = (metrics["tp"] + metrics["tn"]) / (metrics["tp"] + metrics["tn"] + metrics["fp"] + metrics["fn"])
+            metrics["f1"] = 2 * ((metrics["precision"]  * metrics["recall"]) / (metrics["precision"]  + metrics["recall"]))
+            
+            import pandas as pd
+            pd.DataFrame([metrics]).to_csv(path + '/classification-report.csv', index=False)
 
-    x_list = [X, X_train, X_test]
-    fs_list = [fs, training_fs, test_fs]
-    legends = ["X", "X_train", "X_test"]
-    
-    plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title="MSE = {0}".format(mse), output_path=path + "/functions.png")
-    
+        mse = mean_squared_error(y_test, y_pred)
+        
+        x_list = [X, X_train, X_test]
+        fs_list = [fs, training_fs, test_fs]
+        legends = ["X", "X_train", "X_test"]
+        plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title="MSE = {0}".format(mse), output_path=path + "/functions.png")
+        
     plt.show()

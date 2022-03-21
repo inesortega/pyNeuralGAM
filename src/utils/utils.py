@@ -165,17 +165,18 @@ def generate_normal_data(nrows, data_type, link, output_path=""):
     x1 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x2 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x3 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
+    beta0 = 2
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-    fs = fs - fs.mean()
-    
-    beta0 = generate_err(nrows=nrows, data_type=data_type, X=X)
     print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3)")
     
+    # mean-center each f 
+    fs = fs - fs.mean()
     plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
     
-    y = compute_y(fs.sum(axis=1), beta0, link)
+    y = compute_y(X, fs, beta0, nrows, data_type, link)
+    
     return X, y, fs
 
 def generate_uniform_data(nrows, data_type, link, output_path = ""):
@@ -183,28 +184,35 @@ def generate_uniform_data(nrows, data_type, link, output_path = ""):
     x1 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
     x2 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
     x3 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
+    beta0 = 2
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-    fs = fs - fs.mean()
-    
-    plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
-        
-    beta0 = generate_err(nrows=nrows, data_type=data_type, X=X)
-    print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3)")
+    print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
 
-    y = compute_y(fs.sum(axis=1), beta0, link)
+    # mean-center each f 
+    fs = fs - fs.mean()
+    plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
+    
+    y = compute_y(X, fs, beta0, nrows, data_type, link)
     
     return X, y, fs
 
 
-def compute_y(x, beta0, link):
-    y = pd.Series(x)
-    y = y + beta0   
-    if link == "binomial":
-        # Apply link function to transform y to binomial [0,1]
-        y = pd.Series(np.exp(y)/(1+np.exp(y)))
-    return y
+def compute_y(X, fs, beta0, nrows, data_type, link):
+    
+    y = fs.sum(axis=1) + beta0
+    
+    if link == "logistic":
+        y = y - np.mean(y)
+        y = np.exp(y)/(1+np.exp(y))
+        
+    elif link == "linear":
+        err = generate_err(nrows=nrows, data_type=data_type, X=X)
+        y = y + err
+        y = y - np.mean(y)
+        
+    return pd.Series(y)
 
 def generate_data(type, distribution, link, nrows=25000, output_folder = ""):
     """
