@@ -24,7 +24,7 @@ We provide scripts to generate simulation data to test NeuralGAM for linear/logi
 
 | Parameter     | Description                                    | Values |
 | -----------   | ---------------------------------------------- | ------------------------- |
-| GAM type      | Linear or Logistic Regress) | {identity, binomial}                   |
+| GAM type      | Linear or Logistic Regress)                    | {linear, logistic}                   |
 | type          | homogeneity of variance on the intercept term  | {homoscedastic, heteroscedastic}       |
 | distibution   | distribution of the X                          | {normal, uniform} 
 

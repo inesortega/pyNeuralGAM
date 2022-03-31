@@ -46,7 +46,8 @@ class NeuralGAM(tf.keras.Model):
 
         # add input layer
         model.add(Dense(1))
-        # The Hidden Layers :
+        # The Hidden Layers :       
+        model.add(Dense(512, kernel_initializer='glorot_normal', activation='relu'))
         model.add(Dense(256, kernel_initializer='glorot_normal', activation='relu'))
         model.add(Dense(128, kernel_initializer='glorot_normal', activation='relu'))
         model.add(Dense(64, kernel_initializer='glorot_normal', activation='relu'))
@@ -64,27 +65,37 @@ class NeuralGAM(tf.keras.Model):
             self.feature_networks[i] = self.build_feature_NN()
 
     def fit(self, X_train, y_train, max_iter, convergence_threshold):
+        
+        #Initialization
         converged = False
-        
-        self.beta = y_train.mean()
-        
         f = X_train*0
         g = f
         index = f.columns.values
         DELTA_THRESHOLD = 0.001
         it = 0
         
-        # Make the data be zero-mean
-        #Z = y_train - self.beta
+        if self.link == "linear":       
+            self.eta = y_train.mean()    # intially compute residuals as mean of y
+            Z = y_train - self.eta
+            
+        elif self.link == "logistic":
+            muhat = y_train.mean()
+            self.eta = self.inv_link(muhat)
+            Z = self.eta + (y_train - y_train.mean())
+            Z = Z - Z.mean()
+            
+            #Compute weights --- weight of each observation in the additive model given a family for the response and a link function
         
+                
         # Track the squared error of the estimates
         while not converged and it < max_iter:
             #for each feature
             for k in range(len(X_train.columns)):
                 idk = (list(range(0,k,1))+list(range(k+1,len(X_train.columns),1)))    # Get idx of columns != k
                 
-                # Compute the partial residual
-                residuals = y_train - (self.beta + g[index[idk]].sum(axis=1))
+                # Compute the partial residual - remove from y the contribution from other features
+                residuals = Z - g[index[idk]].sum(axis=1)
+                
                 # Fit network k with X_train[k] towards residuals
                 self.feature_networks[k].fit(X_train[X_train.columns[k]], residuals, epochs=1) 
                 
@@ -92,11 +103,10 @@ class NeuralGAM(tf.keras.Model):
                 f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
                 f[index[k]] = f[index[k]] - np.mean(f[index[k]])  
             
-            g = f
-            #compute how far we are from estimating y_train
-            err = mean_squared_error(y_train - self.beta, g.sum(axis=1))
+            #compute how far we are from estimating Z
+            err = mean_squared_error(Z, g.sum(axis=1))          
             self.training_mse.append(err)
-            mse_delta = np.abs(self.training_mse[it] - self.training_mse[it-1])
+            mse_delta = np.abs(self.training_mse[it] - self.training_mse[it-1])          
             print("ITERATION#{0}: Current MSE = {1}".format(it, err))
             print("ITERATION#{0}: MSE delta with prev iteration = {1}".format(it, mse_delta))
             
@@ -105,10 +115,13 @@ class NeuralGAM(tf.keras.Model):
                 converged = True
             
             it+=1
-            
-        # Reconstruct y = sum(f) + beta
-        self.y = g.sum(axis=1) + self.beta
         
+        g = g - g.mean()   
+        
+        # Reconstruct y = sum(f) + beta
+        self.y = g.sum(axis=1) + self.eta
+        self.y = self.apply_link(self.y)
+            
         return
 
     def get_partial_dependencies(self, X: pd.DataFrame):
@@ -121,8 +134,9 @@ class NeuralGAM(tf.keras.Model):
     def predict(self, X: pd.DataFrame):
         """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
         output = self.get_partial_dependencies(X)
-        y = output.sum(axis=1) + self.beta
-        return y
+        y = output.sum(axis=1) + self.eta
+        return self.apply_link(y)
+        
     
     def save_model(self, output_path):
         if not os.path.exists(output_path):
@@ -130,7 +144,19 @@ class NeuralGAM(tf.keras.Model):
         with open(output_path + "/model.ngam", "wb") as file:
             dill.dump(self, file, dill.HIGHEST_PROTOCOL)
             return output_path + "/model.ngam"
-       
+      
+    def apply_link(self, y):
+        if self.link == "logistic":
+            return np.exp(y) / (1 + np.exp(y))
+        else:   #identity
+            return y
+        
+    def inv_link(self, y):
+        """ Computes the inverse of the link function """ 
+        if self.link == "logistic":
+            return np.log(y / (1-y))
+        else:
+            return y
           
 def load_model(model_path) -> NeuralGAM:
     with open(model_path, "rb") as file:

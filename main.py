@@ -109,8 +109,13 @@ if __name__ == "__main__":
             ngam = load_model(path + "/model.ngam")
         else:
             ngam = NeuralGAM(num_inputs = len(X_train.columns), link=link)
-            ngam.fit(X_train = X_train, y_train = y_train, max_iter = 5, convergence_threshold=0.04)
-            ycal = ngam.y
+            
+            if link == "logistic":
+                y_train_binomial = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
+                ngam.fit(X_train = X_train, y_train = y_train_binomial, max_iter = 5, convergence_threshold=0.04)
+            else:         
+                ngam.fit(X_train = X_train, y_train = y_train, max_iter = 5, convergence_threshold=0.04)
+
             training_mse = ngam.training_mse
             model_path = ngam.save_model(path)
             
@@ -120,31 +125,31 @@ if __name__ == "__main__":
             
         y_pred = ngam.predict(X_test)
         
+        #Calculo el error entre y_pred (prob teorica) y el resultado
+        mse = mean_squared_error(y_test, y_pred)
+        
         training_fs = ngam.get_partial_dependencies(X_train)
         test_fs = ngam.get_partial_dependencies(X_test)
         
         print("Finished predictions...Plotting results... ")
         print(variables)
-        if link == "binomial":
-            
+        if link == "logistic":
             x_list = [X_train, X_test]
             fs_list = [training_fs, test_fs]
             legends = ["X_train", "X_test"]
-            plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=variables, output_path=path + "/functions_binomial.png")
+            
+            variables["MSE"] = mse            
+            plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=variables, output_path=path + "/functions_logistic.png")
             
             legends = ["y_train", "y_cal", "y_test", "y_pred"]
-            plot_y_histogram([y_train, ycal, y_test, y_pred], legends=legends, title=variables, output_path=path + "/y_histogram.png")
-        
-            #Compute classification metrics - transform probabilities to binomial distrbution
-            # Get samples from binomial distribution - 1 trial, prob = y 
-            y_test = np.random.binomial(n=1, p = y_test, size=y_test.shape[0])
-            y_pred = np.random.binomial(n=1, p = y_pred, size=y_pred.shape[0])
+            plot_y_histogram([y_train, ngam.y, y_test, y_pred], legends=legends, title=variables, output_path=path + "/y_histogram.png")
+
+            y_test_bin = np.where(y_test >= 0.5, 1, 0)
+            y_pred_bin = np.where(y_test >= 0.5, 1, 0)
             
-            mse = mean_squared_error(y_test, y_pred)
-                   
-            print(classification_report(y_true=y_test, y_pred=y_pred))
-            tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
-            cm_normalized = confusion_matrix(y_test, y_pred, normalize="true")
+            print(classification_report(y_true=y_test_bin, y_pred=y_pred_bin))
+            tn, fp, fn, tp = confusion_matrix(y_test_bin, y_pred_bin).ravel()
+            cm_normalized = confusion_matrix(y_test_bin, y_pred_bin, normalize="true")
             
             plot_confusion_matrix(cm_normalized, ['0', '1'],
                                         path + '/confusion-matrix.png',
@@ -162,7 +167,7 @@ if __name__ == "__main__":
             
             import pandas as pd
             pd.DataFrame([metrics]).to_csv(path + '/classification-report.csv', index=False)
-
+            
         mse = mean_squared_error(y_test, y_pred)
         
         x_list = [X, X_train, X_test]
@@ -170,4 +175,4 @@ if __name__ == "__main__":
         legends = ["X", "X_train", "X_test"]
         plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title="MSE = {0}".format(mse), output_path=path + "/functions.png")
         
-    plt.show()
+    plt.show(block=True)

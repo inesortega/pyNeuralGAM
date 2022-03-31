@@ -165,7 +165,7 @@ def generate_normal_data(nrows, data_type, link, output_path=""):
     x1 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x2 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x3 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
-    beta0 = 2
+    beta0 = np.ones(nrows)
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
@@ -184,7 +184,7 @@ def generate_uniform_data(nrows, data_type, link, output_path = ""):
     x1 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
     x2 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
     x3 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
-    beta0 = 2
+    beta0 = np.ones(nrows)
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
@@ -205,7 +205,7 @@ def compute_y(X, fs, beta0, nrows, data_type, link):
     
     if link == "logistic":
         y = y - np.mean(y)
-        y = np.exp(y)/(1+np.exp(y))
+        y = np.exp(y)/(1+np.exp(y)) # Probabilities of success       
         
     elif link == "linear":
         err = generate_err(nrows=nrows, data_type=data_type, X=X)
@@ -219,7 +219,7 @@ def generate_data(type, distribution, link, nrows=25000, output_folder = ""):
         Returns a pair of X,y to be used with NeuralGAM
         :param: type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
         :param: distribution: generate normal or uniform distributed X data {uniform, normal}
-        :param: link: generate reponse Y in a continuous or binomial distribution
+        :param: link: generate reponse Y for linear or logistic regression problems
         :param: nrows: data size (number of rows)
         :param: output_folder: folder path to save the generated files locally in CSV format
         :return: X: pandas Dataframe object with generated X (one column per feature). Xs follow a normal distribution
