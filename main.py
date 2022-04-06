@@ -3,7 +3,8 @@ import os
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.metrics import classification_report, confusion_matrix, mean_squared_error
+import sklearn
+from sklearn.metrics import classification_report, confusion_matrix, mean_squared_error, log_loss
 from src.utils.utils import generate_data, plot_confusion_matrix, plot_multiple_partial_dependencies, plot_predicted_vs_real, plot_partial_dependencies, plot_y_histogram, split
 from src.NeuralGAM.ngam import NeuralGAM, load_model
 import mlflow
@@ -125,8 +126,9 @@ if __name__ == "__main__":
             
         y_pred = ngam.predict(X_test)
         
-        #Calculo el error entre y_pred (prob teorica) y el resultado
+            
         mse = mean_squared_error(y_test, y_pred)
+        variables["MSE"] = mse
         
         training_fs = ngam.get_partial_dependencies(X_train)
         test_fs = ngam.get_partial_dependencies(X_test)
@@ -138,7 +140,6 @@ if __name__ == "__main__":
             fs_list = [training_fs, test_fs]
             legends = ["X_train", "X_test"]
             
-            variables["MSE"] = mse            
             plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=variables, output_path=path + "/functions_logistic.png")
             
             legends = ["y_train", "y_cal", "y_test", "y_pred"]
@@ -167,8 +168,6 @@ if __name__ == "__main__":
             
             import pandas as pd
             pd.DataFrame([metrics]).to_csv(path + '/classification-report.csv', index=False)
-            
-        mse = mean_squared_error(y_test, y_pred)
         
         x_list = [X, X_train, X_test]
         fs_list = [fs, training_fs, test_fs]

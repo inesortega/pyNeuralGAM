@@ -81,11 +81,8 @@ class NeuralGAM(tf.keras.Model):
         elif self.link == "logistic":
             muhat = y_train.mean()
             self.eta = self.inv_link(muhat)
-            Z = self.eta + (y_train - y_train.mean())
+            Z = self.eta + (y_train - muhat)
             Z = Z - Z.mean()
-            
-            #Compute weights --- weight of each observation in the additive model given a family for the response and a link function
-        
                 
         # Track the squared error of the estimates
         while not converged and it < max_iter:
@@ -115,8 +112,6 @@ class NeuralGAM(tf.keras.Model):
                 converged = True
             
             it+=1
-        
-        g = g - g.mean()   
         
         # Reconstruct y = sum(f) + beta
         self.y = g.sum(axis=1) + self.eta
@@ -148,14 +143,14 @@ class NeuralGAM(tf.keras.Model):
     def apply_link(self, y):
         if self.link == "logistic":
             return np.exp(y) / (1 + np.exp(y))
-        else:   #identity
+        else:   # identity / linear
             return y
         
     def inv_link(self, y):
         """ Computes the inverse of the link function """ 
         if self.link == "logistic":
             return np.log(y / (1-y))
-        else:
+        else:   # identity / linear
             return y
           
 def load_model(model_path) -> NeuralGAM:
