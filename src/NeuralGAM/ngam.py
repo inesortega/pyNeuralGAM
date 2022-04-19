@@ -74,17 +74,11 @@ class NeuralGAM(tf.keras.Model):
         DELTA_THRESHOLD = 0.001
         it = 0
         
-        if self.link == "linear":       
-            self.eta = y_train.mean()    # intially compute residuals as mean of y
-            Z = y_train - self.eta
-            
-        elif self.link == "logistic":
-            muhat = y_train.mean()
-            self.eta = self.inv_link(muhat)
-            Z = self.eta + (y_train - muhat)
-            Z = Z - Z.mean()
-                
-        # Track the squared error of the estimates
+        self.muhat = y_train.mean()
+        self.eta = inv_link(self.link, self.muhat)    # for linear regression, it returns 0
+        Z = (y_train - self.muhat) + self.eta
+           
+        # Start backfitting algorithm
         while not converged and it < max_iter:
             #for each feature
             for k in range(len(X_train.columns)):
@@ -100,6 +94,9 @@ class NeuralGAM(tf.keras.Model):
                 f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
                 f[index[k]] = f[index[k]] - np.mean(f[index[k]])  
             
+            # update current estimations
+            g = f
+            
             #compute how far we are from estimating Z
             err = mean_squared_error(Z, g.sum(axis=1))          
             self.training_mse.append(err)
@@ -110,17 +107,22 @@ class NeuralGAM(tf.keras.Model):
             if (err < convergence_threshold or mse_delta < DELTA_THRESHOLD) and it > 0:
                 print("Z and f(x) converged...")
                 converged = True
-            
+                print("Achieved RMSE during training = {0}".format(mean_squared_error(Z, g.sum(axis=1), squared=False)))
+                
             it+=1
         
-        # Reconstruct y = sum(f) + beta
-        self.y = g.sum(axis=1) + self.eta
-        self.y = self.apply_link(self.y)
+        # Reconstruct y
+        self.y = g.sum(axis=1) + self.muhat
+        self.y = apply_link(self.link, self.y)
             
         return
 
-    def get_partial_dependencies(self, X: pd.DataFrame):
-        """ Compute the partial dependencies for each feature in X"""
+    def get_partial_dependencies(self, X: pd.DataFrame, xform=True):
+        """ 
+        Get the partial dependencies for each feature in X
+        xform : bool, default: True, whether to apply the inverse link function and return values
+                on the scale of the distribution mean (True), or to keep on the linear predictor scale (False)
+        """
         output = pd.DataFrame(columns=range(len(X.columns)))
         for i in range(len(X.columns)):
             output[i] = pd.Series(self.feature_networks[i].predict(X[X.columns[i]]).flatten())
@@ -128,9 +130,9 @@ class NeuralGAM(tf.keras.Model):
             
     def predict(self, X: pd.DataFrame):
         """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
-        output = self.get_partial_dependencies(X)
-        y = output.sum(axis=1) + self.eta
-        return self.apply_link(y)
+        output = self.get_partial_dependencies(X, xform=False)
+        y = output.sum(axis=1) + self.muhat
+        return apply_link(self.link, y)
         
     
     def save_model(self, output_path):
@@ -140,19 +142,21 @@ class NeuralGAM(tf.keras.Model):
             dill.dump(self, file, dill.HIGHEST_PROTOCOL)
             return output_path + "/model.ngam"
       
-    def apply_link(self, y):
-        if self.link == "logistic":
-            return np.exp(y) / (1 + np.exp(y))
-        else:   # identity / linear
-            return y
-        
-    def inv_link(self, y):
-        """ Computes the inverse of the link function """ 
-        if self.link == "logistic":
-            return np.log(y / (1-y))
-        else:   # identity / linear
-            return y
           
 def load_model(model_path) -> NeuralGAM:
     with open(model_path, "rb") as file:
         return dill.load(file)
+
+
+def apply_link(link, a):
+    if link == "logistic":
+        return np.exp(a) / (1 + np.exp(a))
+    else:   # identity / linear
+        return a
+    
+def inv_link(link, a):
+    """ Computes the inverse of the link function """ 
+    if link == "logistic":
+        return np.log(a / (1-a))
+    else:   # identity / linear
+        return 0

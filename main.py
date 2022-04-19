@@ -6,10 +6,10 @@ import pandas as pd
 import sklearn
 from sklearn.metrics import classification_report, confusion_matrix, mean_squared_error, log_loss
 from src.utils.utils import generate_data, plot_confusion_matrix, plot_multiple_partial_dependencies, plot_predicted_vs_real, plot_partial_dependencies, plot_y_histogram, split
-from src.NeuralGAM.ngam import NeuralGAM, load_model
+from src.NeuralGAM.ngam import NeuralGAM, load_model, apply_link
 import mlflow
 from sklearn.metrics import mean_squared_error
-        
+       
 parser = argparse.ArgumentParser()
 
 subparsers = parser.add_subparsers(help='Choose wether to use Linear (linear) or Logistic (logistic) Regression')
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     
     print(variables)
     
-    path = os.path.normpath(os.path.abspath("./results_test/{0}_{1}_{2}".format(type, distribution, link)))
+    path = os.path.normpath(os.path.abspath("./results_test_v2/{0}".format("_".join(list(variables.values())))))
     if not os.path.exists(path):
         os.mkdir(path)
         
@@ -113,7 +113,7 @@ if __name__ == "__main__":
             
             if link == "logistic":
                 y_train_binomial = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
-                ngam.fit(X_train = X_train, y_train = y_train_binomial, max_iter = 5, convergence_threshold=0.04)
+                ngam.fit(X_train = X_train, y_train = y_train_binomial, max_iter = 5, convergence_threshold=0.1)
             else:         
                 ngam.fit(X_train = X_train, y_train = y_train, max_iter = 5, convergence_threshold=0.04)
 
@@ -122,11 +122,9 @@ if __name__ == "__main__":
             
             #mlflow.log_artifact(model_path)
             
-            print("Achieved RMSE during training = {0}".format(mean_squared_error(y_train, ngam.y, squared=False)))
-            
         y_pred = ngam.predict(X_test)
         
-            
+        #Calculo el error entre y_pred (prob teorica) y el resultado    
         mse = mean_squared_error(y_test, y_pred)
         variables["MSE"] = mse
         
@@ -136,6 +134,11 @@ if __name__ == "__main__":
         print("Finished predictions...Plotting results... ")
         print(variables)
         if link == "logistic":
+            
+            # put theorethical fs on the scale of the distribution mean by applying the inverse link function column-wise
+            fs = fs.apply(lambda x: apply_link(link, x), axis=0)
+            fs = fs - fs.mean()
+            
             x_list = [X_train, X_test]
             fs_list = [training_fs, test_fs]
             legends = ["X_train", "X_test"]
@@ -145,8 +148,9 @@ if __name__ == "__main__":
             legends = ["y_train", "y_cal", "y_test", "y_pred"]
             plot_y_histogram([y_train, ngam.y, y_test, y_pred], legends=legends, title=variables, output_path=path + "/y_histogram.png")
 
-            y_test_bin = np.where(y_test >= 0.5, 1, 0)
-            y_pred_bin = np.where(y_test >= 0.5, 1, 0)
+            p_success = ngam.muhat  # probability of success is the mean of y_train
+            y_test_bin = np.where(y_test >= p_success, 1, 0)
+            y_pred_bin = np.where(y_test >= p_success, 1, 0)
             
             print(classification_report(y_true=y_test_bin, y_pred=y_pred_bin))
             tn, fp, fn, tp = confusion_matrix(y_test_bin, y_pred_bin).ravel()
