@@ -17,14 +17,14 @@ np.random.seed(343142)
 """ PLOTTING aux functions """
 def plot_predicted_vs_real(dataframe_list: list, legends: list, title:str, output_path=None):
     fig, axs = plt.subplots(1, len(dataframe_list))
-    fig.suptitle(title, fontsize=16)
+    fig.suptitle(title, fontsize=10)
     for i, term in enumerate(dataframe_list):
         axs[i].plot(dataframe_list[i])
         axs[i].grid()
         axs[i].set_title(legends[i])
 
     if output_path:
-        plt.savefig(output_path, dpi = 100)
+        plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
         plt.show(block=False)
 
@@ -62,12 +62,12 @@ def plot_confusion_matrix(cm, classes,
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-    plt.savefig(output_file)
+    plt.savefig(output_file, dpi=300, bbox_inches = "tight")
     plt.show(block=False)
 
 def plot_y_histogram(dataframe_list: list, legends: list, title:str, output_path=None):
     fig, axs = plt.subplots(1, len(dataframe_list))
-    fig.suptitle(title, fontsize=16)
+    fig.suptitle(title, fontsize=10)
     for i, term in enumerate(dataframe_list):
         #r_values = list(range(dataframe_list[i].shape[0]))
         axs[i].hist(dataframe_list[i])
@@ -75,13 +75,13 @@ def plot_y_histogram(dataframe_list: list, legends: list, title:str, output_path
         axs[i].set_title(legends[i])
     
     if output_path:
-        plt.savefig(output_path, dpi = 100)
+        plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
         plt.show(block=False)
     
-def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_path=None):
+def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_path=None):    
     fig, axs = plt.subplots(nrows=1, ncols=len(f_list[0].columns))
-    fig.suptitle(title, fontsize=16)
+    fig.suptitle(title, fontsize=10)
     for i, term in enumerate(f_list[0].columns):
         data = pd.DataFrame()
         for j in range(len(x_list)):
@@ -94,14 +94,14 @@ def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_pa
         axs[i].set_title("f[{0}]".format(i))
     
     if output_path:
-        plt.savefig(output_path, dpi = 100)
+        plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
         plt.show(block=False)
 
 
 def plot_partial_dependencies(x, fs, title:str, output_path=None):
     fig, axs = plt.subplots(nrows=1, ncols=len(fs.columns))
-    fig.suptitle(title, fontsize=16)
+    fig.suptitle(title, fontsize=10)
     for i, term in enumerate(fs.columns):
         
         data = pd.DataFrame()
@@ -120,7 +120,7 @@ def plot_partial_dependencies(x, fs, title:str, output_path=None):
         axs[i].set_title("f[{0}]".format(i))
   
     if output_path:
-        plt.savefig(output_path, dpi = 100)
+        plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
         plt.show(block=False)
 
@@ -150,7 +150,7 @@ def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
         err = np.random.normal(loc=0, scale=0.2, size=nrows)
     elif data_type == "heteroscedastic":
         x_sum = X.sum(axis=1)
-        err = np.random.normal(loc=0, scale=np.abs(0.01*x_sum), size=nrows)
+        err = np.random.normal(loc=0, scale=np.abs(0.2*x_sum), size=nrows)
 
     print("\n Intercept: {0} data".format(data_type))
     print(pd.DataFrame(err).describe())
