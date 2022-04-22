@@ -79,7 +79,6 @@ class NeuralGAM(tf.keras.Model):
         self.muhat = y_train.mean()
         self.eta = inv_link(self.link, self.muhat)
         Z = inv_link(self.link, y_train) - self.eta
-        Z = Z - Z.mean()
            
         # Start backfitting algorithm
         while not converged and it < max_iter:
