@@ -53,7 +53,7 @@ def setup_mlflow():
     mlflow.set_tracking_uri(MLFLOW_URI)
     
     # Setting the requried environment variables
-    os.environ['MLFLOW_S3_ENDPOINT_URL'] = 'http://minio:9001'
+    os.environ['MLFLOW_S3_ENDPOINT_URL'] = 'http://10.11.1.21:9000'
     os.environ['AWS_ACCESS_KEY_ID'] = 'minio_user'
     os.environ['AWS_SECRET_ACCESS_KEY'] = 'minio_root_pass'
 
@@ -68,12 +68,10 @@ def setup_mlflow():
             print('{} deleted experiment recovered and ready to use'.format(MLFLOW_EXP))
 
     mlflow.set_experiment(MLFLOW_EXP)
-
+    
 if __name__ == "__main__":
     
     """ 
-    USAGE 
-    
     LINEAR REGRESSION: 
         python main.py linear -t {homoscedastic, heteroscedastic} -d {uniform, normal}
     LOGISTIC REGRESSION: 
@@ -89,7 +87,10 @@ if __name__ == "__main__":
     
     print(variables)
     
-    path = os.path.normpath(os.path.abspath("./results_test_v2/{0}".format("_".join(list(variables.values())))))
+    #setup_mlflow()
+    log_mlflow = False
+    
+    path = os.path.normpath(os.path.abspath("./results_test/{0}".format("_".join(list(variables.values())))))
     if not os.path.exists(path):
         os.mkdir(path)
         
@@ -114,20 +115,20 @@ if __name__ == "__main__":
             if link == "logistic":
                 y_train_binomial = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
                 ngam.fit(X_train = X_train, y_train = y_train_binomial, max_iter = 5, convergence_threshold=0.1)
+                print("MSE y_train / ngam.y = {0}".format(mean_squared_error(y_train, ngam.y)))
             else:         
-                ngam.fit(X_train = X_train, y_train = y_train, max_iter = 5, convergence_threshold=0.04)
+                ngam.fit(X_train = X_train, y_train = y_train, max_iter = 5, convergence_threshold=0.05)
+                print("MSE y_train / ngam.y = {0}".format(mean_squared_error(y_train, ngam.y)))
 
             training_mse = ngam.training_mse
             model_path = ngam.save_model(path)
-            
-            #mlflow.log_artifact(model_path)
-            
+
         y_pred = ngam.predict(X_test)
         
         #Calculo el error entre y_pred (prob teorica) y el resultado    
         mse = mean_squared_error(y_test, y_pred)
         variables["MSE"] = mse
-        
+               
         training_fs = ngam.get_partial_dependencies(X_train)
         test_fs = ngam.get_partial_dependencies(X_test)
         
@@ -136,8 +137,8 @@ if __name__ == "__main__":
         if link == "logistic":
             
             # put theorethical fs on the scale of the distribution mean by applying the inverse link function column-wise
-            fs = fs.apply(lambda x: apply_link(link, x), axis=0)
-            fs = fs - fs.mean()
+            #fs = fs.apply(lambda x: apply_link(link, x), axis=0)
+            #fs = fs - fs.mean()
             
             x_list = [X_train, X_test]
             fs_list = [training_fs, test_fs]
@@ -147,7 +148,7 @@ if __name__ == "__main__":
             
             legends = ["y_train", "y_cal", "y_test", "y_pred"]
             plot_y_histogram([y_train, ngam.y, y_test, y_pred], legends=legends, title=variables, output_path=path + "/y_histogram.png")
-
+            
             p_success = ngam.muhat  # probability of success is the mean of y_train
             y_test_bin = np.where(y_test >= p_success, 1, 0)
             y_pred_bin = np.where(y_test >= p_success, 1, 0)
@@ -169,13 +170,22 @@ if __name__ == "__main__":
             metrics["tnr"] = tn / (tn + fp)
             metrics["accuracy"] = (metrics["tp"] + metrics["tn"]) / (metrics["tp"] + metrics["tn"] + metrics["fp"] + metrics["fn"])
             metrics["f1"] = 2 * ((metrics["precision"]  * metrics["recall"]) / (metrics["precision"]  + metrics["recall"]))
-            
+
             import pandas as pd
             pd.DataFrame([metrics]).to_csv(path + '/classification-report.csv', index=False)
         
         x_list = [X, X_train, X_test]
         fs_list = [fs, training_fs, test_fs]
         legends = ["X", "X_train", "X_test"]
-        plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title="MSE = {0}".format(mse), output_path=path + "/functions.png")
-        
+        plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=variables, output_path=path + "/functions.png")
+    
+    if log_mlflow:
+        mlflow.log_artifact(model_path)
+        mlflow.log_metrics(metrics)
+        mlflow.log_params(dict(variables))
+        mlflow.log_metrics({"training_mses": [float(i) for i in ngam.training_mse]})
+        mlflow.log_artifact(path + "/y_histogram.png")
+        mlflow.log_artifact(path + "/functions.png")
+        mlflow.log_artifact(path + "/functions_logistic.png")
+    
     plt.show(block=True)

@@ -1,3 +1,5 @@
+from copy import deepcopy
+from operator import inv
 from typing import Union
 from matplotlib.axis import YAxis
 import numpy as np
@@ -55,7 +57,7 @@ class NeuralGAM(tf.keras.Model):
         model.add(Dense(1))
         # compile computing MSE with Adam optimizer
         model.compile(loss="mean_squared_error", optimizer="adam", metrics=['mean_absolute_error'])
-
+        
         return model
 
 
@@ -75,8 +77,9 @@ class NeuralGAM(tf.keras.Model):
         it = 0
         
         self.muhat = y_train.mean()
-        self.eta = inv_link(self.link, self.muhat)    # for linear regression, it returns 0
-        Z = (y_train - self.muhat) + self.eta
+        self.eta = inv_link(self.link, self.muhat)
+        Z = inv_link(self.link, y_train) - self.eta
+        Z = Z - Z.mean()
            
         # Start backfitting algorithm
         while not converged and it < max_iter:
@@ -97,8 +100,9 @@ class NeuralGAM(tf.keras.Model):
             # update current estimations
             g = f
             
-            #compute how far we are from estimating Z
-            err = mean_squared_error(Z, g.sum(axis=1))          
+            #compute how far we are from estimating y_train
+            y_ = apply_link(self.link, g.sum(axis=1) + self.eta)
+            err = mean_squared_error(y_train, y_)          
             self.training_mse.append(err)
             mse_delta = np.abs(self.training_mse[it] - self.training_mse[it-1])          
             print("ITERATION#{0}: Current MSE = {1}".format(it, err))
@@ -107,17 +111,15 @@ class NeuralGAM(tf.keras.Model):
             if (err < convergence_threshold or mse_delta < DELTA_THRESHOLD) and it > 0:
                 print("Z and f(x) converged...")
                 converged = True
-                print("Achieved RMSE during training = {0}".format(mean_squared_error(Z, g.sum(axis=1), squared=False)))
+                print("Achieved RMSE during training = {0}".format(mean_squared_error(y_train, y_, squared=False)))
                 
             it+=1
         
-        # Reconstruct y
-        self.y = g.sum(axis=1) + self.muhat
-        self.y = apply_link(self.link, self.y)
-            
+        # Reconstruct learnt y
+        self.y = apply_link(self.link, g.sum(axis=1) + self.eta)
         return
 
-    def get_partial_dependencies(self, X: pd.DataFrame, xform=True):
+    def get_partial_dependencies(self, X: pd.DataFrame):
         """ 
         Get the partial dependencies for each feature in X
         xform : bool, default: True, whether to apply the inverse link function and return values
@@ -130,9 +132,9 @@ class NeuralGAM(tf.keras.Model):
             
     def predict(self, X: pd.DataFrame):
         """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
-        output = self.get_partial_dependencies(X, xform=False)
-        y = output.sum(axis=1) + self.muhat
-        return apply_link(self.link, y)
+        output = self.get_partial_dependencies(X)
+        y = apply_link(self.link, output.sum(axis=1) + self.eta)
+        return y
         
     
     def save_model(self, output_path):
@@ -150,6 +152,7 @@ def load_model(model_path) -> NeuralGAM:
 
 def apply_link(link, a):
     if link == "logistic":
+        #return np.where(a >= 0, 1 / (1 + np.exp(-a)), np.exp(a) / (1 + np.exp(a)))
         return np.exp(a) / (1 + np.exp(a))
     else:   # identity / linear
         return a
@@ -157,6 +160,11 @@ def apply_link(link, a):
 def inv_link(link, a):
     """ Computes the inverse of the link function """ 
     if link == "logistic":
-        return np.log(a / (1-a))
+        if type(a) is np.ndarray:
+            a = deepcopy(a).astype("float64")
+            a[a == 0] += .01 # edge case for log link, inverse link, and logit link
+            a[a == 1] -= .01 # edge case for logit link
+        return np.log(a) - np.log(1 - a)
+        #return np.log(a / (1-a))
     else:   # identity / linear
-        return 0
+        return a
