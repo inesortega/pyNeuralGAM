@@ -14,6 +14,7 @@ TfInput = Union[np.ndarray, tf.Tensor]
 import dill
 import os
 from sklearn.preprocessing import MinMaxScaler
+from mlflow.pyfunc import PythonModel 
 
 class NeuralGAM(tf.keras.Model):
     """
@@ -79,7 +80,7 @@ class NeuralGAM(tf.keras.Model):
         self.muhat = y_train.mean()
         self.eta = inv_link(self.link, self.muhat)
         Z = inv_link(self.link, y_train) - self.eta
-           
+        
         # Start backfitting algorithm
         while not converged and it < max_iter:
             #for each feature
@@ -115,10 +116,12 @@ class NeuralGAM(tf.keras.Model):
             it+=1
         
         # Reconstruct learnt y
-        self.y = apply_link(self.link, g.sum(axis=1) + self.eta)
+        self.eta = apply_link(self.link, self.eta)
+        self.y = apply_link(self.link, g.sum(axis=1)) + self.eta
+            
         return
 
-    def get_partial_dependencies(self, X: pd.DataFrame):
+    def get_partial_dependencies(self, X: pd.DataFrame, xform=True):
         """ 
         Get the partial dependencies for each feature in X
         xform : bool, default: True, whether to apply the inverse link function and return values
@@ -127,11 +130,13 @@ class NeuralGAM(tf.keras.Model):
         output = pd.DataFrame(columns=range(len(X.columns)))
         for i in range(len(X.columns)):
             output[i] = pd.Series(self.feature_networks[i].predict(X[X.columns[i]]).flatten())
+        if xform:
+            output = output.apply(lambda x: apply_link(self.link, x))
         return output
             
     def predict(self, X: pd.DataFrame):
         """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
-        output = self.get_partial_dependencies(X)
+        output = self.get_partial_dependencies(X, xform=False)
         y = apply_link(self.link, output.sum(axis=1) + self.eta)
         return y
         
@@ -139,14 +144,42 @@ class NeuralGAM(tf.keras.Model):
     def save_model(self, output_path):
         if not os.path.exists(output_path):
             os.mkdir(output_path)
-        with open(output_path + "/model.ngam", "wb") as file:
-            dill.dump(self, file, dill.HIGHEST_PROTOCOL)
-            return output_path + "/model.ngam"
+        if os.path.exists(output_path + "/model.ngam"):
+            os.remove(output_path + "/model.ngam")
+        #with open(output_path + "/model.ngam", "wb") as file:
+            #dill.dump(self, file, dill.HIGHEST_PROTOCOL)
+        import mlflow
+        mlflow.pyfunc.save_model(python_model=self, path=output_path + "/model.ngam")
+        return output_path + "/model.ngam"
       
-          
+    
+def compute_loss(type, actual, pred):
+    # calculate binary cross entropy
+    if type == "binary_cross_entropy":
+        sum_score = 0.0
+        for i in range(len(actual)):
+            sum_score += actual[i] * np.log(1e-15 + pred[i])
+        mean_sum_score = 1.0 / len(actual) * sum_score
+        return -mean_sum_score
+    elif type == "mse":
+        return mean_squared_error(actual, pred)    
+    elif type == "rmse":
+        return mean_squared_error(actual, pred, squared=True)
+    elif type == "categorical_cross_entropy":
+        sum_score = 0.0
+        for i in range(len(actual)):
+            for j in range(len(actual[i])):
+                sum_score += actual[i][j] * np.log(1e-15 + pred[i][j])
+        mean_sum_score = 1.0 / len(actual) * sum_score
+        return -mean_sum_score
+    else:
+        raise ValueError("Invalid loss type")
+    
 def load_model(model_path) -> NeuralGAM:
-    with open(model_path, "rb") as file:
-        return dill.load(file)
+    """with open(model_path, "rb") as file:
+        return dill.load(file)"""
+    import mlflow
+    return mlflow.pyfunc.load_model(model_path)
 
 
 def apply_link(link, a):
@@ -164,6 +197,5 @@ def inv_link(link, a):
             a[a == 0] += .01 # edge case for log link, inverse link, and logit link
             a[a == 1] -= .01 # edge case for logit link
         return np.log(a) - np.log(1 - a)
-        #return np.log(a / (1-a))
     else:   # identity / linear
         return a

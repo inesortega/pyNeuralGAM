@@ -165,11 +165,11 @@ def generate_normal_data(nrows, data_type, link, output_path=""):
     x1 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x2 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x3 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
-    beta0 = np.ones(nrows)
+    beta0 = np.ones(nrows) * 2
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-    print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3)")
+    print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
     
     # mean-center each f 
     fs = fs - fs.mean()
@@ -184,7 +184,7 @@ def generate_uniform_data(nrows, data_type, link, output_path = ""):
     x1 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
     x2 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
     x3 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
-    beta0 = np.ones(nrows)
+    beta0 = np.ones(nrows) * 2
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
