@@ -89,7 +89,7 @@ def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_pa
             data['y']= f_list[j][f_list[j].columns[i]]
             sns.lineplot(data = data, x='x', y='y', ax=axs[i])
         
-        axs[i].legend(legends)
+        axs[i].legend(legends, loc='lower right')
         axs[i].grid()
         axs[i].set_title("f[{0}]".format(i))
     
@@ -127,7 +127,7 @@ def plot_partial_dependencies(x, fs, title:str, output_path=None):
 
 def split(X, y):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, shuffle=True)
-    return X_train.reset_index(drop=True), X_test.reset_index(drop=True), y_train.reset_index(drop=True).squeeze(), y_test.reset_index(drop=True).squeeze()
+    return X_train, X_test, y_train.squeeze(), y_test.squeeze()
 
 
 def save(X_train,X_test,y_train,y_test, output_folder):
@@ -160,7 +160,7 @@ def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
 def get_truncated_normal(mean=0, sd=1, low=0, upp=10, nrows=25000):
     return truncnorm((low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd).rvs(nrows)
     
-def generate_normal_data(nrows, data_type, link, output_path=""):
+def generate_normal_data(nrows, data_type, family, output_path=""):
     
     x1 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x2 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
@@ -175,11 +175,11 @@ def generate_normal_data(nrows, data_type, link, output_path=""):
     fs = fs - fs.mean()
     plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
     
-    y = compute_y(X, fs, beta0, nrows, data_type, link)
+    y = compute_y(X, fs, beta0, nrows, data_type, family)
     
     return X, y, fs
 
-def generate_uniform_data(nrows, data_type, link, output_path = ""):
+def generate_uniform_data(nrows, data_type, family, output_path = ""):
     
     x1 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
     x2 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
@@ -187,39 +187,40 @@ def generate_uniform_data(nrows, data_type, link, output_path = ""):
     beta0 = np.ones(nrows) * 2
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
-    fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
+    #fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
+    fs = pd.DataFrame([x1*x1, 2*x2, x3*x3]).transpose()
     print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
 
     # mean-center each f 
     fs = fs - fs.mean()
     plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
     
-    y = compute_y(X, fs, beta0, nrows, data_type, link)
+    y = compute_y(X, fs, beta0, nrows, data_type, family)
     
     return X, y, fs
 
 
-def compute_y(X, fs, beta0, nrows, data_type, link):
+def compute_y(X, fs, beta0, nrows, data_type, family):
     
     y = fs.sum(axis=1) + beta0
     
-    if link == "logistic":
+    if family == "binomial":
         y = y - np.mean(y)
         y = np.exp(y)/(1+np.exp(y)) # Probabilities of success       
         
-    elif link == "linear":
+    elif family == "gaussian":
         err = generate_err(nrows=nrows, data_type=data_type, X=X)
         y = y + err
         y = y - np.mean(y)
         
     return pd.Series(y)
 
-def generate_data(type, distribution, link, nrows=25000, output_folder = ""):
+def generate_data(type, distribution, family, nrows=25000, output_folder = ""):
     """
         Returns a pair of X,y to be used with NeuralGAM
         :param: type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
         :param: distribution: generate normal or uniform distributed X data {uniform, normal}
-        :param: link: generate reponse Y for linear or logistic regression problems
+        :param: family: generate reponse Y for linear or binomial regression problems
         :param: nrows: data size (number of rows)
         :param: output_folder: folder path to save the generated files locally in CSV format
         :return: X: pandas Dataframe object with generated X (one column per feature). Xs follow a normal distribution
@@ -227,10 +228,10 @@ def generate_data(type, distribution, link, nrows=25000, output_folder = ""):
     """
     
     if distribution == "uniform":
-        X, y, fs = generate_uniform_data(nrows, type, link, output_path=output_folder)
+        X, y, fs = generate_uniform_data(nrows, type, family, output_path=output_folder)
 
     elif distribution == "normal":
-        X, y, fs = generate_normal_data(nrows, type, link, output_path=output_folder)   
+        X, y, fs = generate_normal_data(nrows, type, family, output_path=output_folder)   
 
     return X, y, fs
     
