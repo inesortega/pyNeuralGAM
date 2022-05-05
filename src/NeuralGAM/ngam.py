@@ -77,11 +77,10 @@ class NeuralGAM(tf.keras.Model):
         f = X_train*0
         g = f
         index = f.columns.values
-        DELTA_THRESHOLD = 0.001
-        it = 0
+        DELTA_THRESHOLD = 0.01  # confirmar con Marta delta_threshold
+        it = 1
         
         it_backfitting = 1
-        err = convergence_threshold + 0.1
         max_iter_backfitting = 3
         
         if not w_train:
@@ -91,13 +90,12 @@ class NeuralGAM(tf.keras.Model):
             max_iter = 1
         
         self.muhat = y_train.mean()
-        eta = inv_link(self.family, self.muhat)
+        eta0 = inv_link(self.family, self.muhat)
+        eta = eta0
         dev_new = self.deviance(self.muhat, y_train, w)
         
         # Start local scoring algorithm
-        while (not converged and (it <= max_iter)):
-            
-            it_backfitting = 1
+        while (not converged and it <= max_iter):
             
             print("Iter Local Scoring = {0}".format(it))
             
@@ -109,14 +107,24 @@ class NeuralGAM(tf.keras.Model):
                 Z = eta + (y_train - self.muhat) * der
                 W = self.weight(w, self.muhat, self.family)
             
+            it_backfitting = 1
+            eta0 = Z.mean()
+            eta = eta0
+            eta_prev = eta0
+            
+            err = convergence_threshold + 0.1
+            
             # Start backfitting algorithm
             while( (err > convergence_threshold) and (it_backfitting <= max_iter_backfitting)):
                 
                 for k in range(len(X_train.columns)):
-                    idk = (list(range(0,k,1))+list(range(k+1,len(X_train.columns),1)))    # Get idx of columns != k
+                    #idk = (list(range(0,k,1))+list(range(k+1,len(X_train.columns),1)))    # Get idx of columns != k
                     
+                    eta = eta - g[index[k]]
+                    residuals = Z - eta
+
                     # Compute the partial residual - remove from y the contribution from other features
-                    residuals = Z - Z.mean() - g[index[idk]].sum(axis=1)
+                    #residuals = Z - Z.mean() - g[index[idk]].sum(axis=1)
                     
                     # Fit network k with X_train[k] towards residuals
                     #self.feature_networks[k].fit(X_train[X_train.columns[k]]/W, residuals, epochs=1) 
@@ -128,23 +136,26 @@ class NeuralGAM(tf.keras.Model):
                     # Update f with current learned function for predictor k -- get f ready for compute residuals at next iteration
                     #f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
                     f[index[k]] = model.predict(polynomial)
-                    f[index[k]] = f[index[k]] - np.mean(f[index[k]])  
+                    f[index[k]] = f[index[k]] - np.mean(f[index[k]])
+                    eta = eta + f[index[k]]  
                 
                 # update current estimations
                 g = f
-                eta_prev = eta
-                eta = Z.mean() + g.sum(axis=1)
+                eta = eta0 + g.sum(axis=1)
       
                 #compute the differences in the predictor at each iter
-                err = np.sum(np.abs(eta_prev - eta)) / np.sum(np.abs(eta_prev))
+                err = np.sum(eta - eta_prev)**2 / np.sum(eta_prev**2)
+                eta_prev = eta
                 print("ITERATION #{0}: Current err = {1}".format(it_backfitting, err))
                 it_backfitting += 1
                 self.training_mse.append(err)
 
+            # out backfitting
             self.muhat = apply_link(self.family, eta)
             dev_old = dev_new
             dev_new = self.deviance(self.muhat, y_train, w)
             dev_delta = np.abs((dev_old - dev_new)/dev_old)
+            print("Dev delta = {0}".format(dev_delta))
             if dev_delta < DELTA_THRESHOLD:
                 print("Z and f(x) converged...")
                 converged = True
@@ -152,10 +163,7 @@ class NeuralGAM(tf.keras.Model):
             it+=1
         
         #  out local scoring
-        """mus = g.mean(axis=0)
-        g = g - mus
-        eta0 = eta0 + mus
-        eta = (eta0 + g).sum(axis=1)"""
+        print("OUT local scoring at it {0}, err = ".format(it, err))
         self.y = apply_link(self.family, eta)
         
         return self.y, g
@@ -174,6 +182,11 @@ class NeuralGAM(tf.keras.Model):
             indexes = ii[0] # get indexes of y where (1 - y) * y > 0
             if len(indexes) > 0:
                 entrop[indexes] = 2 * (y[indexes] * np.log(y[indexes])) + ((1 - y[indexes]) * np.log(1 - y[indexes]))
+            """
+            entrop = np.where((1 - y) * y > 0, 
+                             2 * (y* np.log(y)) + ((1 - y) * np.log(1 - y)),
+                             0)
+            """
             entadd = 2 * (y * np.log(fit)) + ( (1-y) * np.log(1-fit))
             dev = np.sum(entrop - entadd)
         return dev 
