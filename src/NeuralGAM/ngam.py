@@ -40,7 +40,7 @@ class NeuralGAM(tf.keras.Model):
         self.family = family
         self._kwargs = kwargs
         self.feature_networks = [None] * self._num_inputs
-        self.training_mse = list()
+        self.training_err = list()
         self.y = None
         self.build()
 
@@ -70,9 +70,9 @@ class NeuralGAM(tf.keras.Model):
 
     def fit(self, X_train, y_train, max_iter, convergence_threshold, w_train = None):
         
-        #Initialization
         print("Fitting GAM - max_it = {0} ; convergence_thresold = {1}".format(max_iter, convergence_threshold))
         
+        #Initialization
         converged = False
         f = X_train*0
         g = f
@@ -81,18 +81,19 @@ class NeuralGAM(tf.keras.Model):
         it = 1
         
         it_backfitting = 1
-        max_iter_backfitting = 3
+        max_iter_backfitting = 10
         
         if not w_train:
-            w = np.ones(len(y_train))   #input weights.... different from Local Scoring Weights
+            w = np.ones(len(y_train))   #input weights.... different from Local Scoring Weights!!
         
         if self.family == "gaussian":
-            max_iter = 1
+            max_iter = 1  # for gaussian, only one iteration of the LS is required!   
         
         self.muhat = y_train.mean()
-        eta0 = inv_link(self.family, self.muhat)
-        eta = eta0
-        dev_new = self.deviance(self.muhat, y_train, w)
+        muhat = self.muhat
+        self.eta0 = self.inv_link(self.family, muhat)
+        eta = self.eta0
+        dev_new = self.deviance(muhat, y_train, w)
         
         # Start local scoring algorithm
         while (not converged and it <= max_iter):
@@ -103,14 +104,14 @@ class NeuralGAM(tf.keras.Model):
                 Z = y_train
                 W = w
             else:
-                der = self.deriv(self.muhat, self.family)
-                Z = eta + (y_train - self.muhat) * der
-                W = self.weight(w, self.muhat, self.family)
+                der = self.deriv(muhat, self.family)
+                Z = eta + (y_train - muhat) * der
+                W = self.weight(w, muhat, self.family)
             
             it_backfitting = 1
-            eta0 = Z.mean()
-            eta = eta0
-            eta_prev = eta0
+            self.eta0 = Z.mean()
+            eta = self.eta0
+            eta_prev = self.eta0
             
             err = convergence_threshold + 0.1
             
@@ -127,34 +128,37 @@ class NeuralGAM(tf.keras.Model):
                     #residuals = Z - Z.mean() - g[index[idk]].sum(axis=1)
                     
                     # Fit network k with X_train[k] towards residuals
-                    #self.feature_networks[k].fit(X_train[X_train.columns[k]]/W, residuals, epochs=1) 
+                    #self.feature_networks[k].fit(X_train[X_train.columns[k]], residuals, epochs=1) 
                     
+                    """
                     polynomial = PolynomialFeatures(degree=2).fit_transform(X_train[X_train.columns[k]].to_numpy().reshape(-1,1))
                     model = linear_model.LinearRegression()
                     model.fit(polynomial, residuals, W)
-                    
-                    # Update f with current learned function for predictor k -- get f ready for compute residuals at next iteration
-                    #f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
                     f[index[k]] = model.predict(polynomial)
+                    """
+                    # fit current network:
+                    self.feature_networks[k].fit(X_train[X_train.columns[k]], residuals, epochs=1, sample_weight=pd.Series(W)) 
+                    # Update f with current learned function for predictor k -- get f ready for compute residuals at next iteration
+                    f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
                     f[index[k]] = f[index[k]] - np.mean(f[index[k]])
                     eta = eta + f[index[k]]  
                 
                 # update current estimations
                 g = f
-                eta = eta0 + g.sum(axis=1)
+                eta = self.eta0 + g.sum(axis=1)
       
                 #compute the differences in the predictor at each iter
                 err = np.sum(eta - eta_prev)**2 / np.sum(eta_prev**2)
                 eta_prev = eta
-                print("ITERATION #{0}: Current err = {1}".format(it_backfitting, err))
+                print("BACKFITTING ITERATION #{0}: Current err = {1}".format(it_backfitting, err))
                 it_backfitting += 1
-                self.training_mse.append(err)
 
             # out backfitting
-            self.muhat = apply_link(self.family, eta)
+            muhat = self.apply_link(self.family, eta)
             dev_old = dev_new
-            dev_new = self.deviance(self.muhat, y_train, w)
+            dev_new = self.deviance(muhat, y_train, w)
             dev_delta = np.abs((dev_old - dev_new)/dev_old)
+            self.training_err.append(dev_delta)
             print("Dev delta = {0}".format(dev_delta))
             if dev_delta < DELTA_THRESHOLD:
                 print("Z and f(x) converged...")
@@ -163,8 +167,8 @@ class NeuralGAM(tf.keras.Model):
             it+=1
         
         #  out local scoring
-        print("OUT local scoring at it {0}, err = ".format(it, err))
-        self.y = apply_link(self.family, eta)
+        print("OUT local scoring at it {0}, err = {1}, eta0 = {2}".format(it, err, self.eta0))
+        self.y = self.apply_link(self.family, eta)
         
         return self.y, g
     
@@ -228,37 +232,59 @@ class NeuralGAM(tf.keras.Model):
             np.where(muhat > 0.01, w/(muhat * self.deriv(muhat, family)**2), muhat)
         return(wei)
             
-    def get_partial_dependencies(self, X: pd.DataFrame, xform=True):
-        """ 
-        Get the partial dependencies for each feature in X
-        xform : bool, default: True, whether to apply the inverse link function and return values
-                on the scale of the distribution mean (True), or to keep on the linear predictor scale (False)
-        """
+    def get_partial_dependencies(self, X: pd.DataFrame):
         output = pd.DataFrame(columns=range(len(X.columns)))
         for i in range(len(X.columns)):
             output[i] = pd.Series(self.feature_networks[i].predict(X[X.columns[i]]).flatten())
-        if xform:
-            output = output.apply(lambda x: apply_link(self.family, x))
+            
+        print(output.describe())
         return output
             
     def predict(self, X: pd.DataFrame):
         """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
-        output = self.get_partial_dependencies(X, xform=False)
-        y = apply_link(self.family, output.sum(axis=1) + self.muhat)
+        output = self.get_partial_dependencies(X)
+        y = self.apply_link(self.family, output.sum(axis=1) + self.muhat)
         return y
-        
     
+    
+    def apply_link(self, family, muhat):
+        if family == "binomial":
+            muhat = np.where(muhat > 10, 10, muhat)
+            muhat = np.where(muhat < -10, -10, muhat)
+            return np.exp(muhat) / (1 + np.exp(muhat))
+        elif family == "gaussian":   # identity / gaussian
+            return muhat
+        elif family == "poisson":   # identity / gaussian
+            muhat = np.where(muhat > 300, 300, muhat)
+            return np.exp(muhat)
+        
+    def inv_link(self, family, muhat):
+        """ Computes the inverse of the link function """ 
+        if family == "binomial":
+            d = 1 - muhat 
+            d = np.where(muhat <= 0.001, 0.001, muhat)
+            d = np.where(muhat >= 0.999, 0.999, muhat)
+            return np.log(muhat/d) 
+        elif family == "gaussian":   # identity / gaussian
+            return muhat
+        elif family == "poisson":
+            muhat = np.where(muhat <= 0.001, 0.001, muhat)
+            return np.log(muhat)
+            
     def save_model(self, output_path):
         if not os.path.exists(output_path):
             os.mkdir(output_path)
         if os.path.exists(output_path + "/model.ngam"):
             os.remove(output_path + "/model.ngam")
-        #with open(output_path + "/model.ngam", "wb") as file:
-            #dill.dump(self, file, dill.HIGHEST_PROTOCOL)
+        with open(output_path + "/model.ngam", "wb") as file:
+            dill.dump(self, file, dill.HIGHEST_PROTOCOL)
+        """
+        # TODO hablar con eugenia sobre como serializar y guardar cualquier clase...
         import mlflow
         mlflow.pyfunc.save_model(python_model=self, path=output_path + "/model.ngam")
-        return output_path + "/model.ngam"
-      
+        return output_path + "/model.ngam
+        """
+    
     
 def compute_loss(type, actual, pred):
     # calculate binary cross entropy
@@ -282,36 +308,9 @@ def compute_loss(type, actual, pred):
     else:
         raise ValueError("Invalid loss type")
     
-def load_model(model_path) -> NeuralGAM:
-    """ 
+def load_model(model_path):
     with open(model_path, "rb") as file:
         return dill.load(file) 
-    """
-    import mlflow
-    return mlflow.pyfunc.load_model(model_path)
 
-
-def apply_link(family, muhat):
-    if family == "binomial":
-        muhat = np.where(muhat > 10, 10, muhat)
-        muhat = np.where(muhat < -10, -10, muhat)
-        return np.exp(muhat) / (1 + np.exp(muhat))
-    elif family == "gaussian":   # identity / gaussian
-        return muhat
-    elif family == "poisson":   # identity / gaussian
-        muhat = np.where(muhat > 300, 300, muhat)
-        return np.exp(muhat)
-    
-def inv_link(family, muhat):
-    """ Computes the inverse of the link function """ 
-    if family == "binomial":
-        d = 1 - muhat 
-        d = np.where(muhat <= 0.001, 0.001, muhat)
-        d = np.where(muhat >= 0.999, 0.999, muhat)
-        return np.log(muhat/d) 
-    elif family == "gaussian":   # identity / gaussian
-        return muhat
-    elif family == "poisson":
-        muhat = np.where(muhat <= 0.001, 0.001, muhat)
-        return np.log(muhat)
-        
+    #import mlflow
+    #return mlflow.pyfunc.load_model(model_path)
