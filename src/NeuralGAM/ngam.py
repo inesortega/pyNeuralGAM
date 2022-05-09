@@ -17,7 +17,7 @@ from sklearn.preprocessing import MinMaxScaler
 from mlflow.pyfunc import PythonModel 
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn import linear_model
-        
+from tensorflow.keras.callbacks import EarlyStopping    
 class NeuralGAM(tf.keras.Model):
     """
     Neural Generalized Additive Model.
@@ -35,7 +35,7 @@ class NeuralGAM(tf.keras.Model):
             **kwargs: Arbitrary keyword arguments. Used for passing the `activation`
             function as well as the `name_scope`.
         """
-        super(NeuralGAM, self).__init__()
+        super(NeuralGAM, self).__init__("NeuralGAM")
         self._num_inputs = num_inputs
         self.family = family
         self._kwargs = kwargs
@@ -45,17 +45,19 @@ class NeuralGAM(tf.keras.Model):
         self.build()
 
     
-    def build_feature_NN(self):
+    def build_feature_NN(self, layer_name):
         """ Generates a model to fit a specific feature of the dataset"""
-        model = Sequential()
+        model = Sequential(name=layer_name)
 
         # add input layer
         model.add(Dense(1))
         # The Hidden Layers :       
-        model.add(Dense(512, kernel_initializer='glorot_normal', activation='relu'))
+        #model.add(Dense(512, kernel_initializer='glorot_normal', activation='relu'))
+        #model.add(Dense(128, kernel_initializer='glorot_normal', activation='relu'))
         model.add(Dense(256, kernel_initializer='glorot_normal', activation='relu'))
-        model.add(Dense(128, kernel_initializer='glorot_normal', activation='relu'))
-        model.add(Dense(64, kernel_initializer='glorot_normal', activation='relu'))
+        model.add(Dense(256, kernel_initializer='glorot_normal', activation='relu'))
+        model.add(Dense(256, kernel_initializer='glorot_normal', activation='relu'))
+        
         # add output layer
         model.add(Dense(1))
         model.compile(loss= "mean_squared_error", optimizer="adam", metrics=['mean_absolute_error'])
@@ -66,9 +68,9 @@ class NeuralGAM(tf.keras.Model):
     def build(self):
         """Builds a FeatureNNs for each feature """
         for i in range(self._num_inputs):
-            self.feature_networks[i] = self.build_feature_NN()
+            self.feature_networks[i] = self.build_feature_NN(layer_name="layer_{0}".format(i))
 
-    def fit(self, X_train, y_train, max_iter, convergence_threshold, w_train = None):
+    def fit(self, X_train, y_train, max_iter, convergence_threshold, w_train = None, delta_threshold = 0.05):
         
         print("Fitting GAM - max_it = {0} ; convergence_thresold = {1}".format(max_iter, convergence_threshold))
         
@@ -77,7 +79,6 @@ class NeuralGAM(tf.keras.Model):
         f = X_train*0
         g = f
         index = f.columns.values
-        DELTA_THRESHOLD = 0.01  # confirmar con Marta delta_threshold
         it = 1
         
         it_backfitting = 1
@@ -119,25 +120,18 @@ class NeuralGAM(tf.keras.Model):
             while( (err > convergence_threshold) and (it_backfitting <= max_iter_backfitting)):
                 
                 for k in range(len(X_train.columns)):
-                    #idk = (list(range(0,k,1))+list(range(k+1,len(X_train.columns),1)))    # Get idx of columns != k
                     
                     eta = eta - g[index[k]]
                     residuals = Z - eta
-
-                    # Compute the partial residual - remove from y the contribution from other features
-                    #residuals = Z - Z.mean() - g[index[idk]].sum(axis=1)
+                    self.feature_networks[k].compile(loss= "mean_squared_error", 
+                                                     optimizer="adam", 
+                                                     metrics=['mean_absolute_error'],
+                                                     loss_weights=pd.Series(W))
+                    self.feature_networks[k].fit(X_train[X_train.columns[k]], 
+                                                 residuals, 
+                                                 epochs=1, 
+                                                 sample_weight=pd.Series(W)) 
                     
-                    # Fit network k with X_train[k] towards residuals
-                    #self.feature_networks[k].fit(X_train[X_train.columns[k]], residuals, epochs=1) 
-                    
-                    """
-                    polynomial = PolynomialFeatures(degree=2).fit_transform(X_train[X_train.columns[k]].to_numpy().reshape(-1,1))
-                    model = linear_model.LinearRegression()
-                    model.fit(polynomial, residuals, W)
-                    f[index[k]] = model.predict(polynomial)
-                    """
-                    # fit current network:
-                    self.feature_networks[k].fit(X_train[X_train.columns[k]], residuals, epochs=1, sample_weight=pd.Series(W)) 
                     # Update f with current learned function for predictor k -- get f ready for compute residuals at next iteration
                     f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
                     f[index[k]] = f[index[k]] - np.mean(f[index[k]])
@@ -158,9 +152,10 @@ class NeuralGAM(tf.keras.Model):
             dev_old = dev_new
             dev_new = self.deviance(muhat, y_train, w)
             dev_delta = np.abs((dev_old - dev_new)/dev_old)
+            
             self.training_err.append(dev_delta)
             print("Dev delta = {0}".format(dev_delta))
-            if dev_delta < DELTA_THRESHOLD:
+            if dev_delta < delta_threshold:
                 print("Z and f(x) converged...")
                 converged = True
             
@@ -180,7 +175,7 @@ class NeuralGAM(tf.keras.Model):
         elif self.family == "binomial":
             fit = np.where(fit < 0.0001, 0.0001, fit)
             fit = np.where(fit > 0.9999, 0.9999, fit)
-            
+            """
             entrop = np.zeros(len(y))
             ii = np.where((1 - y) * y > 0)
             indexes = ii[0] # get indexes of y where (1 - y) * y > 0
@@ -188,10 +183,10 @@ class NeuralGAM(tf.keras.Model):
                 entrop[indexes] = 2 * (y[indexes] * np.log(y[indexes])) + ((1 - y[indexes]) * np.log(1 - y[indexes]))
             """
             entrop = np.where((1 - y) * y > 0, 
-                             2 * (y* np.log(y)) + ((1 - y) * np.log(1 - y)),
+                             2 * (y * W * np.log(y)) + ((1 - y) * np.log(1 - y)),
                              0)
-            """
-            entadd = 2 * (y * np.log(fit)) + ( (1-y) * np.log(1-fit))
+            
+            entadd = 2 * (y * W * np.log(fit)) + ( (1-y) * np.log(1-fit))
             dev = np.sum(entrop - entadd)
         return dev 
     
@@ -236,14 +231,12 @@ class NeuralGAM(tf.keras.Model):
         output = pd.DataFrame(columns=range(len(X.columns)))
         for i in range(len(X.columns)):
             output[i] = pd.Series(self.feature_networks[i].predict(X[X.columns[i]]).flatten())
-            
-        print(output.describe())
         return output
             
     def predict(self, X: pd.DataFrame):
         """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
         output = self.get_partial_dependencies(X)
-        y = self.apply_link(self.family, output.sum(axis=1) + self.muhat)
+        y = self.apply_link(self.family, output.sum(axis=1) + self.eta0)
         return y
     
     
@@ -285,6 +278,10 @@ class NeuralGAM(tf.keras.Model):
         return output_path + "/model.ngam
         """
     
+    def log_model(self):
+        for model in self.feature_networks:
+            import mlflow
+            mlflow.keras.log_model(model, os.environ['ARTIFACT_URI'])
     
 def compute_loss(type, actual, pred):
     # calculate binary cross entropy

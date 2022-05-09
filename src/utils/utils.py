@@ -26,7 +26,6 @@ def plot_predicted_vs_real(dataframe_list: list, legends: list, title:str, outpu
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
-        plt.show(block=False)
 
 def plot_confusion_matrix(cm, classes,
                         output_file,
@@ -77,7 +76,6 @@ def plot_y_histogram(dataframe_list: list, legends: list, title:str, output_path
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
-        plt.show(block=False)
     
 def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_path=None):    
     fig, axs = plt.subplots(nrows=1, ncols=len(f_list[0].columns))
@@ -95,8 +93,9 @@ def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_pa
     
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
+        import mlflow
+        mlflow.log_artifact(output_path)
         fig = plt.gcf()
-        plt.show(block=False)
 
 
 def plot_partial_dependencies(x, fs, title:str, output_path=None):
@@ -122,12 +121,15 @@ def plot_partial_dependencies(x, fs, title:str, output_path=None):
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
-        plt.show(block=False)
 
 
-def split(X, y):
+def split(X, y, fs):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, shuffle=True)
-    return X_train, X_test, y_train.squeeze(), y_test.squeeze()
+    
+    fs_train = fs.iloc[X_train.index].reset_index(drop=True)
+    fs_test = fs.iloc[X_test.index].reset_index(drop=True)
+    
+    return X_train.reset_index(drop=True), X_test.reset_index(drop=True), y_train.reset_index(drop=True).squeeze(), y_test.reset_index(drop=True).squeeze(), fs_train, fs_test
 
 
 def save(X_train,X_test,y_train,y_test, output_folder):
@@ -152,9 +154,9 @@ def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
         x_sum = X.sum(axis=1)
         err = np.random.normal(loc=0, scale=np.abs(0.2*x_sum), size=nrows)
 
-    print("\n Intercept: {0} data".format(data_type))
-    print(pd.DataFrame(err).describe())
-    print(err)
+    #print("\n Intercept: {0} data".format(data_type))
+    #print(pd.DataFrame(err).describe())
+    #print(err)
     return err
 
 def get_truncated_normal(mean=0, sd=1, low=0, upp=10, nrows=25000):
@@ -187,8 +189,7 @@ def generate_uniform_data(nrows, data_type, family, output_path = ""):
     beta0 = np.ones(nrows) * 2
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
-    #fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-    fs = pd.DataFrame([x1*x1, 2*x2, x3*x3]).transpose()
+    fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
     print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
 
     # mean-center each f 
