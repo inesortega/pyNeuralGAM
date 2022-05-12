@@ -47,6 +47,8 @@ logistic_regression_parser.set_defaults(family='binomial')
 
 def setup_mlflow(family = None):
     
+    print("Setting up MLFLOW....")
+
     MLFLOW_URI = "http://10.11.1.21:5000/"
     MLFLOW_EXP = "iortega.neuralGAM"
     if family:
@@ -54,17 +56,10 @@ def setup_mlflow(family = None):
     # Setting the MLflow tracking server
     mlflow.set_tracking_uri(MLFLOW_URI)
     
-    # Setting the requried environment variables
-    """
-    os.environ['MLFLOW_S3_ENDPOINT_URL'] = 'http://10.11.1.21:9000'
-    os.environ['AWS_ACCESS_KEY_ID'] = 'minio_user'
-    os.environ['AWS_SECRET_ACCESS_KEY'] = 'minio_root_pass'
-    os.environ['ARTIFACT_URI'] = "s3://mlflow/"
-    """
-    MLFLOW_EXP = "test"
+    # Set the requried environment variables on .env
     exp = mlflow.get_experiment_by_name(MLFLOW_EXP)
     if not exp:
-        mlflow.create_experiment(MLFLOW_EXP, os.environ['ARTIFACT_URI'])
+        mlflow.create_experiment(MLFLOW_EXP)
     else:
         if exp.lifecycle_stage == 'deleted':
             from mlflow.tracking import MlflowClient
@@ -73,6 +68,8 @@ def setup_mlflow(family = None):
             print('{} deleted experiment recovered and ready to use'.format(MLFLOW_EXP))
 
     mlflow.set_experiment(MLFLOW_EXP)
+    print("Tracking run on exp " + MLFLOW_EXP)
+
 if __name__ == "__main__":
     
     """ 
@@ -93,56 +90,45 @@ if __name__ == "__main__":
     
     setup_mlflow(family)
     
-    rel_path = "./results_test/{0}".format("_".join(list(variables.values())))
+    rel_path = "./results/{0}".format("_".join(list(variables.values())))
     path = os.path.normpath(os.path.abspath(rel_path))
     if not os.path.exists(path):
         os.mkdir(path)
         
     X, y, fs = generate_data(nrows=25000, type=type, distribution=distribution, family=family, output_folder=path)
     
-    """print("X")
-    print(X.describe())
-    print("\ny")
-    print(y)
-    """
     print("\n Number of elements per class on training set")
     print(pd.DataFrame(np.where(y >= 0.5, 1, 0)).value_counts())
     X_train, X_test, y_train, y_test, fs_train, fs_test = split(X, y, fs)
     
     with mlflow.start_run():
-        
-        mlflow.log_artifact("./requirements.txt")
 
-        if not __debug__ and os.path.isfile(path + "/model.ngam"):
-            ngam = load_model(path + "/model.ngam")
-        else:
-            ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family)         
-            if family == "binomial":
-                y_train_binomial = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
-                
-                conv_threshold = 0.0001
-                delta_threshold = 0.1
-                variables["convergence_threshold"] = conv_threshold
-                variables["delta_threshold"] = delta_threshold
-                mlflow.log_params(dict(variables))
-                
-                muhat, gs_train = ngam.fit(X_train = X_train, y_train = y_train_binomial, max_iter = 10, convergence_threshold=conv_threshold, delta_threshold=delta_threshold)
-                                
-            elif family == "gaussian":     
-                
-                conv_threshold = 0.00001
-                delta_threshold = 0.01
-                variables["convergence_threshold"] = conv_threshold
-                variables["delta_threshold"] = delta_threshold
-                mlflow.log_params(dict(variables))
-                
-                muhat, gs_train = ngam.fit(X_train = X_train, y_train = y_train, max_iter = 10, convergence_threshold=conv_threshold, delta_threshold=delta_threshold)
-                            
-            #model_path = ngam.save_model(path)
-            #mlflow.pyfunc.log_model(python_model=ngam, artifact_path='neuralGAM')
+        ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family)         
+        if family == "binomial":
+            y_train_binomial = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
+            
+            conv_threshold = 0.001
+            delta_threshold = 0.1
+            variables["convergence_threshold"] = conv_threshold
+            variables["delta_threshold"] = delta_threshold
+            mlflow.log_params(dict(variables))
             [mlflow.log_metric("training_err", float(i)) for i in ngam.training_err]
-        
-        
+            muhat, gs_train = ngam.fit(X_train = X_train, y_train = y_train_binomial, max_iter = 10, convergence_threshold=conv_threshold, delta_threshold=delta_threshold)
+                            
+        elif family == "gaussian":     
+            
+            conv_threshold = 0.00001
+            delta_threshold = 0.01
+            variables["convergence_threshold"] = conv_threshold
+            variables["delta_threshold"] = delta_threshold
+            mlflow.log_params(dict(variables))
+            
+            muhat, gs_train = ngam.fit(X_train = X_train, y_train = y_train, max_iter = 10, convergence_threshold=conv_threshold, delta_threshold=delta_threshold)
+                        
+        #model_path = ngam.save_model(path)
+        #mlflow.pyfunc.log_model(python_model=ngam, artifact_path='neuralGAM')
+    
+
         y_pred = ngam.predict(X_test)
         fs_pred = ngam.get_partial_dependencies(X_test)
         
@@ -152,7 +138,7 @@ if __name__ == "__main__":
         mlflow.log_metric("y_train_mse", mse)
         mlflow.log_metric("y_pred_mse", pred_mse)
         print("MSE y_train / ngam.y = {0}".format(mse))
-        print("MSE y_test / y_pred = {0}".format(mse))
+        print("MSE y_test / y_pred = {0}".format(pred_mse))
         
         print("Finished predictions...Plotting results... ")
 
@@ -162,14 +148,15 @@ if __name__ == "__main__":
         vars = variables
         vars["err"] = round(mse, 4)
         plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=vars, output_path=path + "/fs_training.png")
-        
+        mlflow.log_artifact(path + "/fs_training.png")
         x_list = [X_test, X_test]
         fs_list = [fs_test, fs_pred]
         legends = ["real_test", "estimated_test"]
         vars = variables
         vars["err"] = round(pred_mse, 4)
         plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=vars, output_path=path + "/fs_test.png")
-        
+        mlflow.log_artifact(path + "/fs_test.png")
+        mlflow.end_run("FINISHED")
         """
         if family == "binomial":
             

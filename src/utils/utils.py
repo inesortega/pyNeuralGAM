@@ -93,8 +93,6 @@ def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_pa
     
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
-        import mlflow
-        mlflow.log_artifact(output_path)
         fig = plt.gcf()
 
 
@@ -147,16 +145,15 @@ def save(X_train,X_test,y_train,y_test, output_folder):
         
 """ DATA GENERATION """
 
-def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
-    if data_type == "homoscedastic":
-        err = np.random.normal(loc=0, scale=0.2, size=nrows)
-    elif data_type == "heteroscedastic":
-        x_sum = X.sum(axis=1)
-        err = np.random.normal(loc=0, scale=np.abs(0.2*x_sum), size=nrows)
+def generate_err(nrows:int, data_type:str, eta0:pd.DataFrame):
+    err = np.random.normal(loc=0, scale=0.2, size=nrows)
+    if data_type == "heteroscedastic":
+        sigma = np.sqrt(0.5 + 0.05 * np.abs(eta0))
+        err = err * sigma
 
-    #print("\n Intercept: {0} data".format(data_type))
-    #print(pd.DataFrame(err).describe())
-    #print(err)
+    print("\n Intercept: {0} data".format(data_type))
+    print(pd.DataFrame(err).describe())
+
     return err
 
 def get_truncated_normal(mean=0, sd=1, low=0, upp=10, nrows=25000):
@@ -177,7 +174,7 @@ def generate_normal_data(nrows, data_type, family, output_path=""):
     fs = fs - fs.mean()
     plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
     
-    y = compute_y(X, fs, beta0, nrows, data_type, family)
+    y = compute_y(fs, beta0, nrows, data_type, family)
     
     return X, y, fs
 
@@ -196,12 +193,12 @@ def generate_uniform_data(nrows, data_type, family, output_path = ""):
     fs = fs - fs.mean()
     plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
     
-    y = compute_y(X, fs, beta0, nrows, data_type, family)
+    y = compute_y(fs, beta0, nrows, data_type, family)
     
     return X, y, fs
 
 
-def compute_y(X, fs, beta0, nrows, data_type, family):
+def compute_y(fs, beta0, nrows, data_type, family):
     
     y = fs.sum(axis=1) + beta0
     
@@ -210,10 +207,9 @@ def compute_y(X, fs, beta0, nrows, data_type, family):
         y = np.exp(y)/(1+np.exp(y)) # Probabilities of success       
         
     elif family == "gaussian":
-        err = generate_err(nrows=nrows, data_type=data_type, X=X)
+        err = generate_err(nrows=nrows, data_type=data_type, eta0=y)
         y = y + err
         y = y - np.mean(y)
-        
     return pd.Series(y)
 
 def generate_data(type, distribution, family, nrows=25000, output_folder = ""):

@@ -52,11 +52,7 @@ class NeuralGAM(tf.keras.Model):
         # add input layer
         model.add(Dense(1))
         # The Hidden Layers :       
-        #model.add(Dense(512, kernel_initializer='glorot_normal', activation='relu'))
-        #model.add(Dense(128, kernel_initializer='glorot_normal', activation='relu'))
-        model.add(Dense(256, kernel_initializer='glorot_normal', activation='relu'))
-        model.add(Dense(256, kernel_initializer='glorot_normal', activation='relu'))
-        model.add(Dense(256, kernel_initializer='glorot_normal', activation='relu'))
+        model.add(Dense(1024, kernel_initializer='glorot_normal', activation='relu'))
         
         # add output layer
         model.add(Dense(1))
@@ -247,7 +243,7 @@ class NeuralGAM(tf.keras.Model):
             return np.exp(muhat) / (1 + np.exp(muhat))
         elif family == "gaussian":   # identity / gaussian
             return muhat
-        elif family == "poisson":   # identity / gaussian
+        elif family == "poisson": 
             muhat = np.where(muhat > 300, 300, muhat)
             return np.exp(muhat)
         
