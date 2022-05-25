@@ -122,7 +122,7 @@ def plot_partial_dependencies(x, fs, title:str, output_path=None):
 
 
 def split(X, y, fs):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, shuffle=True)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.02, shuffle=True)
     
     fs_train = fs.iloc[X_train.index].reset_index(drop=True)
     fs_test = fs.iloc[X_test.index].reset_index(drop=True)
@@ -169,9 +169,7 @@ def generate_normal_data(nrows, data_type, family, output_path=""):
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
     print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
-    
-    # mean-center each f 
-    fs = fs - fs.mean()
+
     plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
     
     y = compute_y(fs, beta0, nrows, data_type, family)
@@ -180,17 +178,15 @@ def generate_normal_data(nrows, data_type, family, output_path=""):
 
 def generate_uniform_data(nrows, data_type, family, output_path = ""):
     
-    x1 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
-    x2 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
-    x3 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
+    x1 = np.array(np.random.uniform(low=-3, high=3, size=nrows))
+    x2 = np.array(np.random.uniform(low=-3, high=3, size=nrows))
+    x3 = np.array(np.random.uniform(low=-3, high=3, size=nrows))
     beta0 = np.ones(nrows) * 2
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
     print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
 
-    # mean-center each f 
-    fs = fs - fs.mean()
     plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
     
     y = compute_y(fs, beta0, nrows, data_type, family)
