@@ -120,8 +120,6 @@ if __name__ == "__main__":
     conv_threshold = variables.pop("convergence_threshold", 0.01)
     delta_threshold = variables.pop("delta_threshold", 0.00001)
 
-    distribution = variables["distribution"]
-
     variables.pop("iteration")
     print(variables)
     
@@ -151,8 +149,7 @@ if __name__ == "__main__":
         X_test = pd.read_csv("./dataset/{0}/X_test.csv".format(data_type_path), index_col=0).reset_index(drop=True)
         fs_test = pd.read_csv("./dataset/{0}/fs_test.csv".format(data_type_path), index_col=0).reset_index(drop=True)
         y_test = pd.read_csv("./dataset/{0}/y_test.csv".format(data_type_path), index_col=0).reset_index(drop=True).squeeze()
-
-    except:
+    except Exception as e:
         """Not found, generate"""
         X, y, fs = generate_data(nrows=25000, type=type, distribution=distribution, family=family, output_folder=path)
         X_train, X_test, y_train, y_test, fs_train, fs_test = split(X, y, fs)
@@ -169,8 +166,7 @@ if __name__ == "__main__":
         tend = datetime.now()
 
     else:
-        ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family)
-
+        ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family, num_units=1024, depth=1)
         tstart = datetime.now()
         muhat, gs_train = ngam.fit(X_train = X_train, y_train = y_train, max_iter = 10, convergence_threshold=conv_threshold, delta_threshold=delta_threshold)
         tend = datetime.now()
@@ -186,7 +182,6 @@ if __name__ == "__main__":
     pred_err = mean_squared_error(y_test, y_pred)
     variables["err"] = err
     variables["err_test"] = pred_err
-    
     """ SAVE DATASET """
     if not os.path.exists("./dataset/{0}/X_train.csv".format(data_type_path)):
         pd.DataFrame(X_train).to_csv("./dataset/{0}/X_train.csv".format(data_type_path))
@@ -197,18 +192,21 @@ if __name__ == "__main__":
         pd.DataFrame(fs_test).to_csv("./dataset/{0}/fs_test.csv".format(data_type_path))
 
     x_list = [X_train, X_train]
+    fs_train = fs_train - fs_train.mean()
     fs_list = [fs_train, gs_train]
     legends = ["real", "estimated_training"]
     vars = variables
     vars["err"] = round(err, 4)
     plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=vars, output_path=path + "/fs_training.png")
     x_list = [X_test, X_test]
+    fs_test = fs_test - fs_test.mean()
     fs_list = [fs_test, fs_pred]
+    
     legends = ["real_test", "estimated_test"]
     vars = variables
     vars["err"] = round(pred_err, 4)
-    plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=vars, output_path=path + "/fs_test.png")
     
+    plot_multiple_partial_dependencies(x_list=[X_test], f_list=[fs_pred], legends=legends, title=vars, output_path=path + "/fs_test.png")
 
     """ SAVE RESULTS"""
     pd.DataFrame(fs_pred).to_csv(path + "/fs_test_estimated.csv")

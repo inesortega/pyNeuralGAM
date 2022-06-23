@@ -1,6 +1,8 @@
 import itertools
 import math
 import os
+
+from sklearn.metrics import roc_curve
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
 
 import matplotlib.pyplot as plt
@@ -83,13 +85,39 @@ def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_pa
     for i, term in enumerate(f_list[0].columns):
         data = pd.DataFrame()
         for j in range(len(x_list)):
+            if j==0:
+                color = "red"
+                style = "-"
+            else:
+                color = "green"
+                style = "--"
+
             data['x'] = x_list[j][x_list[j].columns[i]]
             data['y']= f_list[j][f_list[j].columns[i]]
-            sns.lineplot(data = data, x='x', y='y', ax=axs[i])
-        
-        axs[i].legend(legends, loc='lower right')
+            sns.lineplot(data = data, x='x', y='y', ax=axs[i], color=color, linestyle=style)
+            
+            # calculate confidence interval at 95%
+            #ci = 1.96 * np.std(data['y'])/np.sqrt(len(data['x']))
+            
+            #data['y+ci'] = data['y'] + ci
+            #data['y-ci'] = data['y'] - ci
+            #sns.lineplot(data = data, x='x', y='y-ci', color='grey', linestyle='--', alpha = 0.5, ax=axs[i])
+            #sns.lineplot(data = data, x='x', y='y+ci', color='grey', linestyle='--', alpha = 0.5, ax=axs[i])
+
         axs[i].grid()
-        axs[i].set_title("f[{0}]".format(i))
+    
+    axs[0].set_title("f(x) = 2x\N{SUBSCRIPT ONE}")
+    axs[1].set_title("f(x) = x\N{SUBSCRIPT TWO}\u00b2")
+    axs[2].set_title("f(x) = sen(x\N{SUBSCRIPT THREE})")
+
+    import matplotlib.patches as mpatches
+
+    theoretical_patch = mpatches.Patch(color='red', label='Theoretical f(x)')
+    learned_patch = mpatches.Patch(color='green', label='Learned f(x) from Neural GAM')
+    #quantiles = mpatches.Patch(color='grey', label='Confidence Intervals at 95%')
+    
+    fig.legend(handles=[theoretical_patch, learned_patch], loc='lower center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5)
+    plt.tight_layout()
     
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
@@ -120,7 +148,39 @@ def plot_partial_dependencies(x, fs, title:str, output_path=None):
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
 
-
+def youden(y_true, y_score):
+    '''Find data-driven cut-off for classification
+    
+    Cut-off is determied using Youden's index defined as sensitivity + specificity - 1.
+    
+    Parameters
+    ----------
+    
+    y_true : array, shape = [n_samples]
+        True binary labels.
+        
+    y_score : array, shape = [n_samples]
+        Target scores, can either be probability estimates of the positive class,
+        confidence values, or non-thresholded measure of decisions (as returned by
+        “decision_function” on some classifiers).
+        
+    References
+    ----------
+    
+    Ewald, B. (2006). Post hoc choice of cut points introduced bias to diagnostic research.
+    Journal of clinical epidemiology, 59(8), 798-801.
+    
+    Steyerberg, E.W., Van Calster, B., & Pencina, M.J. (2011). Performance measures for
+    prediction models and markers: evaluation of predictions and classifications.
+    Revista Espanola de Cardiologia (English Edition), 64(9), 788-794.
+    
+    Jiménez-Valverde, A., & Lobo, J.M. (2007). Threshold criteria for conversion of probability
+    of species presence to either–or presence–absence. Acta oecologica, 31(3), 361-369.
+    '''
+    fpr, tpr, thresholds = roc_curve(y_true, y_score)
+    idx = np.argmax(tpr - fpr)
+    return thresholds[idx]
+    
 def split(X, y, fs):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.02, shuffle=True)
     

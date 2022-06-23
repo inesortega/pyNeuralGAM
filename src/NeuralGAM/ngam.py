@@ -6,6 +6,8 @@ from sklearn.metrics import mean_squared_error
 import tensorflow as tf
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.models import Sequential
+from tensorflow.keras.optimizers import Adam
+
 TfInput = Union[np.ndarray, tf.Tensor]
 import dill
 import os
@@ -56,9 +58,7 @@ class NeuralGAM(tf.keras.Model):
             model.add(Dense(self._num_units, kernel_initializer='glorot_normal', activation='relu'))
         # add output layer
         model.add(Dense(1))
-        
-        model.compile(loss= "mean_squared_error", optimizer="adam")
-
+        model.compile(loss= "mean_squared_error", optimizer=Adam(learning_rate=0.001))
         return model
 
 
@@ -139,7 +139,6 @@ class NeuralGAM(tf.keras.Model):
                                                  residuals, 
                                                  epochs=1, 
                                                  sample_weight=pd.Series(W)) 
-                    
                     # Update f with current learned function for predictor k
                     f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
                     f[index[k]] = f[index[k]] - np.mean(f[index[k]])
@@ -267,7 +266,7 @@ class NeuralGAM(tf.keras.Model):
             
     
     def compute_err(self, actual, pred):
-        """ Compute err according to the distrbution family"""
+        """ Compute err according to the distribution family"""
         if self._family == "binomial":
             # calculate binary cross entropy
             sum_score = 0.0

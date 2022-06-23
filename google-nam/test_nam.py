@@ -9,6 +9,74 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import argparse
+
+parser = argparse.ArgumentParser()
+subparsers = parser.add_subparsers(help='Choose wether to use Linear (linear) or Logistic (logistic) Regression')
+linear_regression_parser = subparsers.add_parser(name='linear', help="Linear Regression")
+linear_regression_parser.add_argument(
+    "-t",
+    "--type",
+    default="homoscedastic",
+    metavar="{homoscedastic, heteroscedastic} ",
+    dest="type",
+    type=str,
+    help="""Choose wether to generate a homoscesdastic or heteroscedastic epsilon term"""
+)
+linear_regression_parser.add_argument(
+    "-d",
+    "--distribution",
+    default="uniform",
+    type=str,
+    metavar="{uniform, normal} ",
+    help="Choose wether to generate normal or uniform distributed dataset"
+)
+linear_regression_parser.add_argument(
+    "-i",
+    "--iteration",
+    default=None,
+    type=int,
+    metavar="N_iteration (for simulations)"
+)
+linear_regression_parser.add_argument(
+    "-c",
+    "--convergence_threshold",
+    default=0.00001,
+    type=float,
+    metavar="Convergence Threshold of Backfitting algorithm"
+)
+linear_regression_parser.set_defaults(family='gaussian')
+logistic_regression_parser = subparsers.add_parser(name='logistic', help="Logistic Regression")
+logistic_regression_parser.add_argument(
+    "-d",
+    "--distribution",
+    default="uniform",
+    type=str,
+    metavar="{uniform, normal} ",
+    help="Choose wether to generate normal or uniform distributed dataset"
+)
+logistic_regression_parser.add_argument(
+    "-i",
+    "--iteration",
+    default=None,
+    type=int,
+    metavar="N_iteration (for simulations)"
+)
+logistic_regression_parser.add_argument(
+    "-c",
+    "--convergence_threshold",
+    default=0.00001,
+    type=float,
+    metavar="Convergence Threshold of backfitting algorithm"
+)
+logistic_regression_parser.add_argument(
+    "-a",
+    "--delta_threshold",
+    default=0.01,
+    type=float,
+    metavar="Convergence Threshold of LS algorithm"
+)
+logistic_regression_parser.set_defaults(family='binomial')
 
 def partition(lst, batch_size):
     lst_len = len(lst)
@@ -84,8 +152,6 @@ def plot_mean_feature_importance(x1, x2, cols, width = 0.3):
 def inverse_min_max_scaler(x, min_val, max_val):
   return (x + 1)/2 * (max_val - min_val) + min_val
 
-
-
 def compute_mean_feature_importance(avg_hist_data):
   mean_abs_score = {}
   for k in avg_hist_data:
@@ -159,7 +225,6 @@ def shade_by_density_blocks(hist_data, num_rows, num_cols,
                               edgecolor=color, facecolor=color, alpha=alpha)
       ax.add_patch(rect)
 
-
 def plot_all_hist(hist_data, num_rows, num_cols,  color_base, labels, MEAN_PRED, UNIQUE_FEATURES_ORIGINAL,
                   linewidth=3.0, min_y=None, max_y=None, alpha=1.0):
   hist_data_pairs = list(hist_data.items())
@@ -193,11 +258,46 @@ def plot_all_hist(hist_data, num_rows, num_cols,  color_base, labels, MEAN_PRED,
       plt.ylabel('House Price Contribution', fontsize='x-large')
   return min_y, max_y
 
-def main():
+if __name__ == "__main__":
   import pandas as pd
   import os.path as osp
+  import os
+
+  args = parser.parse_args()
+  variables = vars(args)
   
-  data_type_path = "homoscedastic_uniform_gaussian"
+  type = variables.get("type", None)
+  distribution = variables["distribution"]
+  family = variables["family"]    # gaussian / binomial
+  iteration = variables["iteration"]
+
+  regression = False
+  if family == "gaussian":
+    regression = True
+
+  conv_threshold = variables.pop("convergence_threshold", 0.01)
+  delta_threshold = variables.pop("delta_threshold", 0.00001)
+
+  variables.pop("iteration")
+  print(variables)
+  
+  if iteration is not None:
+      rel_path = "./results-nam/{0}".format(iteration)
+      path = os.path.normpath(os.path.abspath(rel_path))
+      #add iteration
+      if not os.path.exists(path):
+          os.mkdir(path)
+
+  else:
+      rel_path = "./results-nam/"
+      path = os.path.normpath(os.path.abspath(rel_path))
+        
+  # add exec type
+  data_type_path = "_".join(list(variables.values())) 
+  path = path + "/" + data_type_path
+  if not os.path.exists(path):
+      os.mkdir(path)
+
   column_names = ["f1", "f2", "f3"]
 
   X_train = pd.read_csv("./dataset/{0}/X_train.csv".format(data_type_path), index_col=0, dtype=np.float32).reset_index(drop=True)
@@ -222,8 +322,8 @@ def main():
             dropout=0.0,
             feature_dropout=0.0,
             activation="relu",
-            num_basis_functions=1024,
-            shallow=True,
+            num_basis_functions=64,
+            shallow=False,
             units_multiplier=1,
             trainable=False,
             name_scope="model_0")
@@ -231,9 +331,8 @@ def main():
   _ = nn_model(X_train[:1])
   nn_model.summary()
   
-
-  logdir = './logdir/'
-  ckpt_dir = osp.join(logdir, 'model_0', 'best_checkpoint')
+  logdir = path + "/model"
+  ckpt_dir = osp.normpath(osp.join(logdir, 'model_0', 'best_checkpoint'))
 
   print(ckpt_dir)
   ckpt_files = sorted(tf.io.gfile.listdir(ckpt_dir))
@@ -257,9 +356,8 @@ def main():
     value = ckpt_reader.get_tensor(tensor_name)
     var.assign(value)
 
-  from sklearn.metrics import mean_squared_error
-  
   test_predictions = get_test_predictions(nn_model, X_test)
+  train_predictions = get_test_predictions(nn_model, X_train)
   unique_features = compute_features(X_test)
   #feature_predictions = get_feature_predictions(nn_model, unique_features)
 
@@ -268,9 +366,27 @@ def main():
     feature_predictions[column_names[i]] = nn_model.feature_nns[i](feat, training=nn_model._false)
 
 
+  if regression is False:
+    # compute both ROC-AUC
+    y_test_binomial = pd.read_csv(path + "/y_test_binomial.csv", index_col=0, dtype=np.float32).reset_index(drop=True).squeeze()
+    y_test_binomial = y_test_binomial.to_numpy()
+
+    y_train_binomial = pd.read_csv(path + "/y_train_binomial.csv", index_col=0, dtype=np.float32).reset_index(drop=True).squeeze()
+    y_train_binomial = y_train_binomial.to_numpy()
+
+    test_metric = graph_builder.calculate_metric(y_test_binomial, test_predictions, regression=False)
+    train_metric = graph_builder.calculate_metric(y_train_binomial, train_predictions, regression=False)
+    variables["err_test_auc"] = test_metric
+    variables["err_auc"] = train_metric
+  
+  # For both cases, compute MSE / RMSE on regression problem
   test_metric = graph_builder.calculate_metric(y_test, test_predictions, regression=True)
-  metric_str = 'MSE'
-  print(f'{metric_str}: {test_metric}')
+  train_metric = graph_builder.calculate_metric(y_train, train_predictions, regression=True)
+  variables["err_test_rmse"] = test_metric
+  variables["err_rmse"] = train_metric
+
+  variables["err_test"] = test_metric**2
+  variables["err"] = train_metric**2
 
   NUM_FEATURES = X_test.shape[1]
   SINGLE_FEATURES = np.split(X_test, NUM_FEATURES, axis=1)
@@ -299,6 +415,13 @@ def main():
   x_list = [X_test, x_pred]
   fs_list = [fs_test, fs_pred]
 
+  """ SAVE RESULTS"""
+  pd.DataFrame(fs_pred).to_csv(path + "/fs_test_estimated.csv")
+  pd.DataFrame(test_predictions).to_csv(path + "/y_pred.csv")
+  pd.DataFrame.from_dict(variables, orient="index").transpose().to_csv(path + "/variables.csv", index=False)
+
+  """ PLOT PARTIAL EFFECTS """
+  """
   fig, axs = plt.subplots(nrows=1, ncols=len(fs_list[0].columns))
   fig.suptitle("test", fontsize=10)
   for i in range(len(fs_list[0].columns)):
@@ -316,23 +439,4 @@ def main():
           sns.lineplot(data = data, x='x', y='y', ax=axs[i], color=color, linestyle=style)
 
   plt.show(block=True)
-
   """
-  col_min_max = {}
-  for col in range(X_test.shape[1]):
-    unique_vals = np.unique(X_test[col], axis=0) 
-    col_min_max[col] = (np.min(unique_vals), np.max(unique_vals))
-
-  SINGLE_FEATURES_ORIGINAL = {}
-  UNIQUE_FEATURES_ORIGINAL = {}
-  
-  for i, col in enumerate(column_names):
-    min_val, max_val = col_min_max[i]
-    UNIQUE_FEATURES_ORIGINAL[col] = inverse_min_max_scaler(
-        UNIQUE_FEATURES[i][:, 0], min_val, max_val)
-    SINGLE_FEATURES_ORIGINAL[col] = inverse_min_max_scaler(
-        SINGLE_FEATURES[i][:, 0], min_val, max_val)
-
-  """
-if __name__ == '__main__':
-  main()
