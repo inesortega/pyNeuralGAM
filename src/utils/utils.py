@@ -1,6 +1,8 @@
 import itertools
 import math
 import os
+
+from sklearn.metrics import roc_curve
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
 
 import matplotlib.pyplot as plt
@@ -26,7 +28,6 @@ def plot_predicted_vs_real(dataframe_list: list, legends: list, title:str, outpu
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
-        plt.show(block=False)
 
 def plot_confusion_matrix(cm, classes,
                         output_file,
@@ -77,7 +78,6 @@ def plot_y_histogram(dataframe_list: list, legends: list, title:str, output_path
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
-        plt.show(block=False)
     
 def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_path=None):    
     fig, axs = plt.subplots(nrows=1, ncols=len(f_list[0].columns))
@@ -85,18 +85,43 @@ def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_pa
     for i, term in enumerate(f_list[0].columns):
         data = pd.DataFrame()
         for j in range(len(x_list)):
+            if j==0:
+                color = "red"
+                style = "-"
+            else:
+                color = "green"
+                style = "--"
+
             data['x'] = x_list[j][x_list[j].columns[i]]
             data['y']= f_list[j][f_list[j].columns[i]]
-            sns.lineplot(data = data, x='x', y='y', ax=axs[i])
-        
-        axs[i].legend(legends)
+            sns.lineplot(data = data, x='x', y='y', ax=axs[i], color=color, linestyle=style)
+            
+            # calculate confidence interval at 95%
+            #ci = 1.96 * np.std(data['y'])/np.sqrt(len(data['x']))
+            
+            #data['y+ci'] = data['y'] + ci
+            #data['y-ci'] = data['y'] - ci
+            #sns.lineplot(data = data, x='x', y='y-ci', color='grey', linestyle='--', alpha = 0.5, ax=axs[i])
+            #sns.lineplot(data = data, x='x', y='y+ci', color='grey', linestyle='--', alpha = 0.5, ax=axs[i])
+
         axs[i].grid()
-        axs[i].set_title("f[{0}]".format(i))
+    
+    axs[0].set_title("f(x) = 2x\N{SUBSCRIPT ONE}")
+    axs[1].set_title("f(x) = x\N{SUBSCRIPT TWO}\u00b2")
+    axs[2].set_title("f(x) = sen(x\N{SUBSCRIPT THREE})")
+
+    import matplotlib.patches as mpatches
+
+    theoretical_patch = mpatches.Patch(color='red', label='Theoretical f(x)')
+    learned_patch = mpatches.Patch(color='green', label='Learned f(x) from Neural GAM')
+    #quantiles = mpatches.Patch(color='grey', label='Confidence Intervals at 95%')
+    
+    fig.legend(handles=[theoretical_patch, learned_patch], loc='lower center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5)
+    plt.tight_layout()
     
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
-        plt.show(block=False)
 
 
 def plot_partial_dependencies(x, fs, title:str, output_path=None):
@@ -122,12 +147,47 @@ def plot_partial_dependencies(x, fs, title:str, output_path=None):
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
-        plt.show(block=False)
 
-
-def split(X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, shuffle=False)
-    return X_train.reset_index(drop=True), X_test.reset_index(drop=True), y_train.reset_index(drop=True).squeeze(), y_test.reset_index(drop=True).squeeze()
+def youden(y_true, y_score):
+    '''Find data-driven cut-off for classification
+    
+    Cut-off is determied using Youden's index defined as sensitivity + specificity - 1.
+    
+    Parameters
+    ----------
+    
+    y_true : array, shape = [n_samples]
+        True binary labels.
+        
+    y_score : array, shape = [n_samples]
+        Target scores, can either be probability estimates of the positive class,
+        confidence values, or non-thresholded measure of decisions (as returned by
+        “decision_function” on some classifiers).
+        
+    References
+    ----------
+    
+    Ewald, B. (2006). Post hoc choice of cut points introduced bias to diagnostic research.
+    Journal of clinical epidemiology, 59(8), 798-801.
+    
+    Steyerberg, E.W., Van Calster, B., & Pencina, M.J. (2011). Performance measures for
+    prediction models and markers: evaluation of predictions and classifications.
+    Revista Espanola de Cardiologia (English Edition), 64(9), 788-794.
+    
+    Jiménez-Valverde, A., & Lobo, J.M. (2007). Threshold criteria for conversion of probability
+    of species presence to either–or presence–absence. Acta oecologica, 31(3), 361-369.
+    '''
+    fpr, tpr, thresholds = roc_curve(y_true, y_score)
+    idx = np.argmax(tpr - fpr)
+    return thresholds[idx]
+    
+def split(X, y, fs):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.02, shuffle=True)
+    
+    fs_train = fs.iloc[X_train.index].reset_index(drop=True)
+    fs_test = fs.iloc[X_test.index].reset_index(drop=True)
+    
+    return X_train.reset_index(drop=True), X_test.reset_index(drop=True), y_train.reset_index(drop=True).squeeze(), y_test.reset_index(drop=True).squeeze(), fs_train, fs_test
 
 
 def save(X_train,X_test,y_train,y_test, output_folder):
@@ -145,81 +205,75 @@ def save(X_train,X_test,y_train,y_test, output_folder):
         
 """ DATA GENERATION """
 
-def generate_err(nrows:int, data_type:str, X:pd.DataFrame):
-    if data_type == "homoscedastic":
-        err = np.random.normal(loc=0, scale=0.2, size=nrows)
-    elif data_type == "heteroscedastic":
-        x_sum = X.sum(axis=1)
-        err = np.random.normal(loc=0, scale=np.abs(0.2*x_sum), size=nrows)
+def generate_err(nrows:int, data_type:str, eta0:pd.DataFrame):
+    err = np.random.normal(loc=0, scale=0.2, size=nrows)
+    if data_type == "heteroscedastic":
+        sigma = np.sqrt(0.5 + 0.05 * np.abs(eta0))
+        err = err * sigma
 
     print("\n Intercept: {0} data".format(data_type))
     print(pd.DataFrame(err).describe())
-    print(err)
+
     return err
 
 def get_truncated_normal(mean=0, sd=1, low=0, upp=10, nrows=25000):
     return truncnorm((low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd).rvs(nrows)
     
-def generate_normal_data(nrows, data_type, link, output_path=""):
+def generate_normal_data(nrows, data_type, family, output_path=""):
     
     x1 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x2 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x3 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
-    beta0 = np.ones(nrows)
-    
-    X = pd.DataFrame([x1,x2,x3]).transpose()
-    fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-    print("y = beta0 + f(x1) + f(x2) + f(x3) =  beta0 + x1^2 + 2x2 + sin(x3)")
-    
-    # mean-center each f 
-    fs = fs - fs.mean()
-    plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
-    
-    y = compute_y(X, fs, beta0, nrows, data_type, link)
-    
-    return X, y, fs
-
-def generate_uniform_data(nrows, data_type, link, output_path = ""):
-    
-    x1 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
-    x2 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
-    x3 = np.array(np.random.uniform(low=-5, high=5, size=nrows))
-    beta0 = np.ones(nrows)
+    beta0 = np.ones(nrows) * 2
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
     print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
 
-    # mean-center each f 
-    fs = fs - fs.mean()
     plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
     
-    y = compute_y(X, fs, beta0, nrows, data_type, link)
+    y = compute_y(fs, beta0, nrows, data_type, family)
+    
+    return X, y, fs
+
+def generate_uniform_data(nrows, data_type, family, output_path = ""):
+    
+    x1 = np.array(np.random.uniform(low=-3, high=3, size=nrows))
+    x2 = np.array(np.random.uniform(low=-3, high=3, size=nrows))
+    x3 = np.array(np.random.uniform(low=-3, high=3, size=nrows))
+    beta0 = np.ones(nrows) * 2
+    
+    X = pd.DataFrame([x1,x2,x3]).transpose()
+    fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
+    print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
+
+    plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
+    
+    y = compute_y(fs, beta0, nrows, data_type, family)
     
     return X, y, fs
 
 
-def compute_y(X, fs, beta0, nrows, data_type, link):
+def compute_y(fs, beta0, nrows, data_type, family):
     
     y = fs.sum(axis=1) + beta0
     
-    if link == "logistic":
+    if family == "binomial":
         y = y - np.mean(y)
         y = np.exp(y)/(1+np.exp(y)) # Probabilities of success       
         
-    elif link == "linear":
-        err = generate_err(nrows=nrows, data_type=data_type, X=X)
+    elif family == "gaussian":
+        err = generate_err(nrows=nrows, data_type=data_type, eta0=y)
         y = y + err
         y = y - np.mean(y)
-        
     return pd.Series(y)
 
-def generate_data(type, distribution, link, nrows=25000, output_folder = ""):
+def generate_data(type, distribution, family, nrows=25000, output_folder = ""):
     """
         Returns a pair of X,y to be used with NeuralGAM
         :param: type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
         :param: distribution: generate normal or uniform distributed X data {uniform, normal}
-        :param: link: generate reponse Y for linear or logistic regression problems
+        :param: family: generate reponse Y for linear or binomial regression problems
         :param: nrows: data size (number of rows)
         :param: output_folder: folder path to save the generated files locally in CSV format
         :return: X: pandas Dataframe object with generated X (one column per feature). Xs follow a normal distribution
@@ -227,10 +281,10 @@ def generate_data(type, distribution, link, nrows=25000, output_folder = ""):
     """
     
     if distribution == "uniform":
-        X, y, fs = generate_uniform_data(nrows, type, link, output_path=output_folder)
+        X, y, fs = generate_uniform_data(nrows, type, family, output_path=output_folder)
 
     elif distribution == "normal":
-        X, y, fs = generate_normal_data(nrows, type, link, output_path=output_folder)   
+        X, y, fs = generate_normal_data(nrows, type, family, output_path=output_folder)   
 
     return X, y, fs
     

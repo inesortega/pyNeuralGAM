@@ -1,15 +1,14 @@
 import argparse
 import os
-from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
-import sklearn
-from sklearn.metrics import classification_report, confusion_matrix, mean_squared_error, log_loss
-from src.utils.utils import generate_data, plot_confusion_matrix, plot_multiple_partial_dependencies, plot_predicted_vs_real, plot_partial_dependencies, plot_y_histogram, split
-from src.NeuralGAM.ngam import NeuralGAM, load_model, apply_link
-import mlflow
 from sklearn.metrics import mean_squared_error
-       
+from src.utils.utils import generate_data, split
+from src.NeuralGAM.ngam import NeuralGAM
+import pandas as pd
+from datetime import datetime
+from src.utils.utils import plot_multiple_partial_dependencies
+
 parser = argparse.ArgumentParser()
 
 subparsers = parser.add_subparsers(help='Choose wether to use Linear (linear) or Logistic (logistic) Regression')
@@ -32,7 +31,38 @@ linear_regression_parser.add_argument(
     metavar="{uniform, normal} ",
     help="Choose wether to generate normal or uniform distributed dataset"
 )
-linear_regression_parser.set_defaults(link='linear')
+linear_regression_parser.add_argument(
+    "-i",
+    "--iteration",
+    default=None,
+    type=int,
+    metavar="N_iteration (for simulations)"
+)
+
+"""linear_regression_parser.add_argument(
+    "-n",
+    "--neurons",
+    default=1024,
+    type=int,
+    metavar="Number of neurons per hidden layer"
+)
+
+linear_regression_parser.add_argument(
+    "-l",
+    "--layers",
+    default=1,
+    type=int,
+    metavar="Number of hidden layers"
+)"""
+linear_regression_parser.add_argument(
+    "-c",
+    "--convergence_threshold",
+    default=0.00001,
+    type=float,
+    metavar="Convergence Threshold of Backfitting algorithm"
+)
+
+linear_regression_parser.set_defaults(family='gaussian')
 
 logistic_regression_parser = subparsers.add_parser(name='logistic', help="Logistic Regression")
 logistic_regression_parser.add_argument(
@@ -43,37 +73,36 @@ logistic_regression_parser.add_argument(
     metavar="{uniform, normal} ",
     help="Choose wether to generate normal or uniform distributed dataset"
 )
-logistic_regression_parser.set_defaults(link='logistic')
 
-def setup_mlflow():
-    
-    MLFLOW_URI = "http://10.11.1.21:5000/"
-    MLFLOW_EXP = "iortega.neuralGAM"
-    # Setting the MLflow tracking server
-    mlflow.set_tracking_uri(MLFLOW_URI)
-    
-    # Setting the requried environment variables
-    os.environ['MLFLOW_S3_ENDPOINT_URL'] = 'http://minio:9001'
-    os.environ['AWS_ACCESS_KEY_ID'] = 'minio_user'
-    os.environ['AWS_SECRET_ACCESS_KEY'] = 'minio_root_pass'
+logistic_regression_parser.add_argument(
+    "-i",
+    "--iteration",
+    default=None,
+    type=int,
+    metavar="N_iteration (for simulations)"
+)
 
-    exp = mlflow.get_experiment_by_name(MLFLOW_EXP)
-    if not exp:
-        mlflow.create_experiment(MLFLOW_EXP)
-    else:
-        if exp.lifecycle_stage == 'deleted':
-            from mlflow.tracking import MlflowClient
-            client = MlflowClient()
-            client.restore_experiment(exp.experiment_id)
-            print('{} deleted experiment recovered and ready to use'.format(MLFLOW_EXP))
+logistic_regression_parser.add_argument(
+    "-c",
+    "--convergence_threshold",
+    default=0.00001,
+    type=float,
+    metavar="Convergence Threshold of backfitting algorithm"
+)
 
-    mlflow.set_experiment(MLFLOW_EXP)
+logistic_regression_parser.add_argument(
+    "-a",
+    "--delta_threshold",
+    default=0.01,
+    type=float,
+    metavar="Convergence Threshold of LS algorithm"
+)
+
+logistic_regression_parser.set_defaults(family='binomial')
 
 if __name__ == "__main__":
     
     """ 
-    USAGE 
-    
     LINEAR REGRESSION: 
         python main.py linear -t {homoscedastic, heteroscedastic} -d {uniform, normal}
     LOGISTIC REGRESSION: 
@@ -85,97 +114,103 @@ if __name__ == "__main__":
     
     type = variables.get("type", None)
     distribution = variables["distribution"]
-    link = variables["link"]
-    
+    family = variables["family"]    # gaussian / binomial
+    iteration = variables["iteration"]
+
+    conv_threshold = variables.pop("convergence_threshold", 0.01)
+    delta_threshold = variables.pop("delta_threshold", 0.00001)
+
+    variables.pop("iteration")
     print(variables)
     
-    path = os.path.normpath(os.path.abspath("./results_test_v2/{0}".format("_".join(list(variables.values())))))
+    if iteration is not None:
+        rel_path = "./results/{0}".format(iteration)
+        path = os.path.normpath(os.path.abspath(rel_path))
+        #add iteration
+        if not os.path.exists(path):
+            os.mkdir(path)
+
+    else:
+        rel_path = "./results/"
+        path = os.path.normpath(os.path.abspath(rel_path))
+        
+    # add exec type
+    data_type_path = "_".join(list(variables.values())) 
+    path = path + "/" + data_type_path
     if not os.path.exists(path):
         os.mkdir(path)
-        
-    X, y, fs = generate_data(nrows=25000, type=type, distribution=distribution, link=link, output_folder=path)
-    
-    print("X")
-    print(X.describe())
-    print("\ny")
-    print(y)
-    
-    print("\n Number of elements per class on training set")
-    print(pd.DataFrame(np.where(y >= 0.5, 1, 0)).value_counts())
-    X_train, X_test, y_train, y_test = split(X, y)
-    
-    with mlflow.start_run():
-        
-        if not __debug__ and os.path.isfile(path + "/model.ngam"):
-            ngam = load_model(path + "/model.ngam")
-        else:
-            ngam = NeuralGAM(num_inputs = len(X_train.columns), link=link)
-            
-            if link == "logistic":
-                y_train_binomial = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
-                ngam.fit(X_train = X_train, y_train = y_train_binomial, max_iter = 5, convergence_threshold=0.1)
-            else:         
-                ngam.fit(X_train = X_train, y_train = y_train, max_iter = 5, convergence_threshold=0.04)
 
-            training_mse = ngam.training_mse
-            model_path = ngam.save_model(path)
-            
-            #mlflow.log_artifact(model_path)
-            
-        y_pred = ngam.predict(X_test)
-        
-        #Calculo el error entre y_pred (prob teorica) y el resultado    
-        mse = mean_squared_error(y_test, y_pred)
-        variables["MSE"] = mse
-        
-        training_fs = ngam.get_partial_dependencies(X_train)
-        test_fs = ngam.get_partial_dependencies(X_test)
-        
-        print("Finished predictions...Plotting results... ")
-        print(variables)
-        if link == "logistic":
-            
-            # put theorethical fs on the scale of the distribution mean by applying the inverse link function column-wise
-            fs = fs.apply(lambda x: apply_link(link, x), axis=0)
-            fs = fs - fs.mean()
-            
-            x_list = [X_train, X_test]
-            fs_list = [training_fs, test_fs]
-            legends = ["X_train", "X_test"]
-            
-            plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=variables, output_path=path + "/functions_logistic.png")
-            
-            legends = ["y_train", "y_cal", "y_test", "y_pred"]
-            plot_y_histogram([y_train, ngam.y, y_test, y_pred], legends=legends, title=variables, output_path=path + "/y_histogram.png")
+    """ Load dataset """
+    try:
+        X_train = pd.read_csv("./dataset/{0}/X_train.csv".format(data_type_path), index_col=0).reset_index(drop=True)
+        fs_train = pd.read_csv("./dataset/{0}/fs_train.csv".format(data_type_path), index_col=0).reset_index(drop=True)
+        y_train = pd.read_csv("./dataset/{0}/y_train.csv".format(data_type_path), index_col=0).reset_index(drop=True).squeeze()
 
-            p_success = ngam.muhat  # probability of success is the mean of y_train
-            y_test_bin = np.where(y_test >= p_success, 1, 0)
-            y_pred_bin = np.where(y_test >= p_success, 1, 0)
-            
-            print(classification_report(y_true=y_test_bin, y_pred=y_pred_bin))
-            tn, fp, fn, tp = confusion_matrix(y_test_bin, y_pred_bin).ravel()
-            cm_normalized = confusion_matrix(y_test_bin, y_pred_bin, normalize="true")
-            
-            plot_confusion_matrix(cm_normalized, ['0', '1'],
-                                        path + '/confusion-matrix.png',
-                                        title='Confusion Matrix')
-            metrics = dict()
-            metrics["tp"] = tp
-            metrics["fp"] = fp
-            metrics["tn"] = tn
-            metrics["fn"] = fn
-            metrics["precision"] = tp / (tp + fp)
-            metrics["recall"] = tp / (tp + fn)
-            metrics["tnr"] = tn / (tn + fp)
-            metrics["accuracy"] = (metrics["tp"] + metrics["tn"]) / (metrics["tp"] + metrics["tn"] + metrics["fp"] + metrics["fn"])
-            metrics["f1"] = 2 * ((metrics["precision"]  * metrics["recall"]) / (metrics["precision"]  + metrics["recall"]))
-            
-            import pandas as pd
-            pd.DataFrame([metrics]).to_csv(path + '/classification-report.csv', index=False)
+        X_test = pd.read_csv("./dataset/{0}/X_test.csv".format(data_type_path), index_col=0).reset_index(drop=True)
+        fs_test = pd.read_csv("./dataset/{0}/fs_test.csv".format(data_type_path), index_col=0).reset_index(drop=True)
+        y_test = pd.read_csv("./dataset/{0}/y_test.csv".format(data_type_path), index_col=0).reset_index(drop=True).squeeze()
+    except Exception as e:
+        """Not found, generate"""
+        X, y, fs = generate_data(nrows=25000, type=type, distribution=distribution, family=family, output_folder=path)
+        X_train, X_test, y_train, y_test, fs_train, fs_test = split(X, y, fs)
         
-        x_list = [X, X_train, X_test]
-        fs_list = [fs, training_fs, test_fs]
-        legends = ["X", "X_train", "X_test"]
-        plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title="MSE = {0}".format(mse), output_path=path + "/functions.png")
+        print("\n Number of elements per class on training set")
+        print(pd.DataFrame(np.where(y >= 0.5, 1, 0)).value_counts())
         
-    plt.show(block=True)
+    
+    if family == "binomial":
+        y_train_binomial = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
+        ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family, depth=1, num_units=1024)
+        tstart = datetime.now()
+        muhat, gs_train = ngam.fit(X_train = X_train, y_train = y_train_binomial, max_iter = 10, convergence_threshold=conv_threshold, delta_threshold=delta_threshold)
+        tend = datetime.now()
+
+    else:
+        ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family, num_units=1024, depth=1)
+        tstart = datetime.now()
+        muhat, gs_train = ngam.fit(X_train = X_train, y_train = y_train, max_iter = 10, convergence_threshold=conv_threshold, delta_threshold=delta_threshold)
+        tend = datetime.now()
+    
+    training_seconds = (tend - tstart).seconds
+    variables["eta0"] = ngam.eta0
+    variables["training_seconds"] = training_seconds
+
+    y_pred = ngam.predict(X_test)
+    fs_pred = ngam.get_partial_dependencies(X_test)
+
+    err = mean_squared_error(y_train, ngam.y)
+    pred_err = mean_squared_error(y_test, y_pred)
+    variables["err"] = err
+    variables["err_test"] = pred_err
+    """ SAVE DATASET """
+    if not os.path.exists("./dataset/{0}/X_train.csv".format(data_type_path)):
+        pd.DataFrame(X_train).to_csv("./dataset/{0}/X_train.csv".format(data_type_path))
+        pd.DataFrame(y_train).to_csv("./dataset/{0}/y_train.csv".format(data_type_path))
+        pd.DataFrame(fs_train).to_csv("./dataset/{0}/fs_train.csv".format(data_type_path))
+        pd.DataFrame(X_test).to_csv("./dataset/{0}/X_test.csv".format(data_type_path))
+        pd.DataFrame(y_test).to_csv("./dataset/{0}/y_test.csv".format(data_type_path))
+        pd.DataFrame(fs_test).to_csv("./dataset/{0}/fs_test.csv".format(data_type_path))
+
+    x_list = [X_train, X_train]
+    fs_train = fs_train - fs_train.mean()
+    fs_list = [fs_train, gs_train]
+    legends = ["real", "estimated_training"]
+    vars = variables
+    vars["err"] = round(err, 4)
+    plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=vars, output_path=path + "/fs_training.png")
+    x_list = [X_test, X_test]
+    fs_test = fs_test - fs_test.mean()
+    fs_list = [fs_test, fs_pred]
+    
+    legends = ["real_test", "estimated_test"]
+    vars = variables
+    vars["err"] = round(pred_err, 4)
+    
+    plot_multiple_partial_dependencies(x_list=[X_test], f_list=[fs_pred], legends=legends, title=vars, output_path=path + "/fs_test.png")
+
+    """ SAVE RESULTS"""
+    pd.DataFrame(fs_pred).to_csv(path + "/fs_test_estimated.csv")
+    pd.DataFrame(y_pred).to_csv(path + "/y_pred.csv")
+   
+    pd.DataFrame(gs_train).to_csv(path + "/fs_train_estimated.csv")  
+    pd.DataFrame.from_dict(variables, orient="index").transpose().to_csv(path + "/variables.csv", index=False)
