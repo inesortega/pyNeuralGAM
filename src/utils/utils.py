@@ -1,10 +1,10 @@
-import itertools
-import math
-import os
 
+""" This file contains a set of auxiliar functions to plot and compute results, and generate synthetic datasets with different distributions """
+
+import itertools
+import os
 from sklearn.metrics import roc_curve
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -13,10 +13,8 @@ from sklearn.model_selection import train_test_split
 import scipy
 from scipy.stats import truncnorm
 
-#todo delete in prod!!
 np.random.seed(343142)
 
-""" PLOTTING aux functions """
 def plot_predicted_vs_real(dataframe_list: list, legends: list, title:str, output_path=None):
     fig, axs = plt.subplots(1, len(dataframe_list))
     fig.suptitle(title, fontsize=10)
@@ -78,8 +76,9 @@ def plot_y_histogram(dataframe_list: list, legends: list, title:str, output_path
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
         fig = plt.gcf()
-    
-def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_path=None):    
+
+ 
+def experiments_plot_partial_dependencies(x_list, f_list, legends, title, output_path=None):    
     fig, axs = plt.subplots(nrows=1, ncols=len(f_list[0].columns))
     fig.suptitle(title, fontsize=10)
     for i, term in enumerate(f_list[0].columns):
@@ -124,32 +123,9 @@ def plot_multiple_partial_dependencies(x_list, f_list, legends, title, output_pa
         fig = plt.gcf()
 
 
-def plot_partial_dependencies(x, fs, title:str, output_path=None):
-    fig, axs = plt.subplots(nrows=1, ncols=len(fs.columns))
-    fig.suptitle(title, fontsize=10)
-    for i, term in enumerate(fs.columns):
-        
-        data = pd.DataFrame()
-        
-        data['x'] = x[x.columns[i]]
-        data['y']= fs[fs.columns[i]]
-        # calculate confidence interval at 95%
-        ci = 1.96 * np.std(data['y'])/np.sqrt(len(data['x']))
-        
-        data['y+ci'] = data['y'] + ci
-        data['y-ci'] = data['y'] - ci
-        sns.lineplot(data = data, x='x', y='y', color='b', ax=axs[i])
-        sns.lineplot(data = data, x='x', y='y-ci', color='r', linestyle='--', ax=axs[i])
-        sns.lineplot(data = data, x='x', y='y+ci', color='r', linestyle='--', ax=axs[i])
-        axs[i].grid()
-        axs[i].set_title("f[{0}]".format(i))
-  
-    if output_path:
-        plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
-        fig = plt.gcf()
-
 def youden(y_true, y_score):
-    '''Find data-driven cut-off for classification
+    """
+    Find data-driven cut-off for classification
     
     Cut-off is determied using Youden's index defined as sensitivity + specificity - 1.
     
@@ -176,7 +152,7 @@ def youden(y_true, y_score):
     
     Jiménez-Valverde, A., & Lobo, J.M. (2007). Threshold criteria for conversion of probability
     of species presence to either–or presence–absence. Acta oecologica, 31(3), 361-369.
-    '''
+    """
     fpr, tpr, thresholds = roc_curve(y_true, y_score)
     idx = np.argmax(tpr - fpr)
     return thresholds[idx]
@@ -229,26 +205,20 @@ def generate_normal_data(nrows, data_type, family, output_path=""):
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
     print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
-
-    plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
-    
+   
     y = compute_y(fs, beta0, nrows, data_type, family)
     
     return X, y, fs
 
 def generate_uniform_data(nrows, data_type, family, output_path = ""):
     
-    x1 = np.array(np.random.uniform(low=-3, high=3, size=nrows))
-    x2 = np.array(np.random.uniform(low=-3, high=3, size=nrows))
-    x3 = np.array(np.random.uniform(low=-3, high=3, size=nrows))
-    beta0 = np.ones(nrows) * 2
-    
+    x1 = np.array(np.random.uniform(low=-2.5, high=2.5, size=nrows))
+    x2 = np.array(np.random.uniform(low=-2.5, high=2.5, size=nrows))
+    x3 = np.array(np.random.uniform(low=-2.5, high=2.5, size=nrows))
+    beta0 = np.ones(nrows) * 2 
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-    print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
-
-    plot_partial_dependencies(X, fs, "Theoretical Model", output_path=output_path + "/thoeretical_model.png")
-    
+    print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")   
     y = compute_y(fs, beta0, nrows, data_type, family)
     
     return X, y, fs

@@ -45,6 +45,16 @@ linear_regression_parser.add_argument(
     type=float,
     metavar="Convergence Threshold of Backfitting algorithm"
 )
+linear_regression_parser.add_argument(
+    "-o",
+    "--output",
+    default="results",
+    dest="output",
+    type=str,
+    help="""Output folder"""
+)
+
+
 linear_regression_parser.set_defaults(family='gaussian')
 logistic_regression_parser = subparsers.add_parser(name='logistic', help="Logistic Regression")
 logistic_regression_parser.add_argument(
@@ -76,6 +86,16 @@ logistic_regression_parser.add_argument(
     type=float,
     metavar="Convergence Threshold of LS algorithm"
 )
+
+logistic_regression_parser.add_argument(
+    "-o",
+    "--output",
+    default="results",
+    dest="output",
+    type=str,
+    help="""Output folder"""
+)
+
 logistic_regression_parser.set_defaults(family='binomial')
 
 def partition(lst, batch_size):
@@ -270,6 +290,9 @@ if __name__ == "__main__":
   distribution = variables["distribution"]
   family = variables["family"]    # gaussian / binomial
   iteration = variables["iteration"]
+  
+
+  output_folder = variables.pop("output", "results")
 
   regression = False
   if family == "gaussian":
@@ -282,18 +305,19 @@ if __name__ == "__main__":
   print(variables)
   
   if iteration is not None:
-      rel_path = "./results-nam/{0}".format(iteration)
+      rel_path = "./{0}/{1}".format(output_folder, iteration)
       path = os.path.normpath(os.path.abspath(rel_path))
       #add iteration
       if not os.path.exists(path):
           os.mkdir(path)
 
   else:
-      rel_path = "./results-nam/"
+      rel_path = "./{0}/".format(output_folder)
       path = os.path.normpath(os.path.abspath(rel_path))
         
   # add exec type
-  data_type_path = "_".join(list(variables.values())) 
+  #data_type_path = "_".join(list(variables.values())) 
+  data_type_path = "google"
   path = path + "/" + data_type_path
   if not os.path.exists(path):
       os.mkdir(path)
@@ -322,7 +346,7 @@ if __name__ == "__main__":
             dropout=0.0,
             feature_dropout=0.0,
             activation="relu",
-            num_basis_functions=64,
+            num_basis_functions=[1024,512,256],
             shallow=False,
             units_multiplier=1,
             trainable=False,
@@ -376,12 +400,23 @@ if __name__ == "__main__":
 
     test_metric = graph_builder.calculate_metric(y_test_binomial, test_predictions, regression=False)
     train_metric = graph_builder.calculate_metric(y_train_binomial, train_predictions, regression=False)
-    variables["err_test_auc"] = test_metric
-    variables["err_auc"] = train_metric
-  
-  # For both cases, compute MSE / RMSE on regression problem
-  test_metric = graph_builder.calculate_metric(y_test, test_predictions, regression=True)
-  train_metric = graph_builder.calculate_metric(y_train, train_predictions, regression=True)
+    variables["auc_roc"] = test_metric
+
+
+    def sigmoid(x):
+      """Sigmoid function."""
+      if isinstance(x, list):
+        x = np.array(x)
+      return np.where(x >= 0, 1 / (1 + np.exp(-x)), np.exp(x) / (1 + np.exp(x)))
+
+    test_metric = graph_builder.calculate_metric(y_test, sigmoid(test_predictions), regression=True)
+    train_metric = graph_builder.calculate_metric(y_train, sigmoid(train_predictions), regression=True)
+
+  else:
+    # For gaussian case, compute as regression=True
+    test_metric = graph_builder.calculate_metric(y_test, test_predictions, regression=True)
+    train_metric = graph_builder.calculate_metric(y_train, train_predictions, regression=True)
+
   variables["err_test_rmse"] = test_metric
   variables["err_rmse"] = train_metric
 
@@ -390,8 +425,9 @@ if __name__ == "__main__":
 
   NUM_FEATURES = X_test.shape[1]
   SINGLE_FEATURES = np.split(X_test, NUM_FEATURES, axis=1)
-  UNIQUE_FEATURES = [np.unique(x, axis=0) for x in SINGLE_FEATURES]
-  
+  #UNIQUE_FEATURES = [np.unique(x, axis=0) for x in SINGLE_FEATURES]
+  UNIQUE_FEATURES = SINGLE_FEATURES
+
   SINGLE_FEATURES_ORIGINAL = {}
   UNIQUE_FEATURES_ORIGINAL = {}
 
@@ -419,24 +455,3 @@ if __name__ == "__main__":
   pd.DataFrame(fs_pred).to_csv(path + "/fs_test_estimated.csv")
   pd.DataFrame(test_predictions).to_csv(path + "/y_pred.csv")
   pd.DataFrame.from_dict(variables, orient="index").transpose().to_csv(path + "/variables.csv", index=False)
-
-  """ PLOT PARTIAL EFFECTS """
-  """
-  fig, axs = plt.subplots(nrows=1, ncols=len(fs_list[0].columns))
-  fig.suptitle("test", fontsize=10)
-  for i in range(len(fs_list[0].columns)):
-      data = pd.DataFrame()
-      for j in range(len(x_list)):
-          if j==0:
-              color = "red"
-              style = "-"
-          else:
-              color = "green"
-              style = "--"
-
-          data['x'] = x_list[j][x_list[j].columns[i]]
-          data['y']= fs_list[j][fs_list[j].columns[i]]
-          sns.lineplot(data = data, x='x', y='y', ax=axs[i], color=color, linestyle=style)
-
-  plt.show(block=True)
-  """

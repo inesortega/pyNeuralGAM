@@ -7,6 +7,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
+from tensorflow.python.training.tracking.data_structures import ListWrapper
 
 TfInput = Union[np.ndarray, tf.Tensor]
 import dill
@@ -25,13 +26,12 @@ class NeuralGAM(tf.keras.Model):
                 num_inputs,
                 family,
                 num_units = 1024,
-                depth = 1,
                 **kwargs):
         """Initializes NeuralGAM hyperparameters.
 
         Args:
             num_inputs: Number of feature inputs in input data.
-            num_units: Number of hidden units in first layer of each feature net.
+            num_units: Number of hidden units in first layer of each feature net, or list with sizes of N layers [64, 64, 32]
             **kwargs: Arbitrary keyword arguments. Used for passing the `activation`
             function as well as the `name_scope`.
         """
@@ -39,7 +39,6 @@ class NeuralGAM(tf.keras.Model):
         self._num_inputs = num_inputs
         self._family = family
         self._num_units = num_units
-        self.depth = depth
         self._kwargs = kwargs
         self.feature_networks = [None] * self._num_inputs
         self.eta0 = 0
@@ -47,16 +46,21 @@ class NeuralGAM(tf.keras.Model):
         self.build()
 
     
-    def build_feature_NN(self, layer_name, depth):
+    def build_feature_NN(self, layer_name):
         """ Generates a model to fit a specific feature of the dataset"""
         model = Sequential(name=layer_name)
 
         # add input layer
         model.add(Dense(1))
-        # The Hidden Layers :    
-        for i in range(depth):   
+
+        # add hidden layer(s). If self._num_units is a list, add one layer per size in the list
+        if type(self._num_units) is ListWrapper:
+            for i in range(len(self._num_units)):
+                model.add(Dense(self._num_units[i], kernel_initializer='glorot_normal', activation='relu'))
+        else:
+            # single layer (shallow) NeuralGAM
             model.add(Dense(self._num_units, kernel_initializer='glorot_normal', activation='relu'))
-        # add output layer
+        
         model.add(Dense(1))
         model.compile(loss= "mean_squared_error", optimizer=Adam(learning_rate=0.001))
         return model
@@ -65,24 +69,25 @@ class NeuralGAM(tf.keras.Model):
     def build(self):
         """Builds a FeatureNNs for each feature """
         for i in range(self._num_inputs):
-            self.feature_networks[i] = self.build_feature_NN(layer_name="layer_{0}".format(i), depth=self.depth)
+            self.feature_networks[i] = self.build_feature_NN(layer_name="layer_{0}".format(i))
 
-    def fit(self, X_train, y_train, max_iter, w_train = None, convergence_threshold=0.00001, delta_threshold = 0.01, max_iter_backfitting = 10):
+    def fit(self, X_train, y_train, max_iter_ls, w_train = None, bf_threshold=0.00001, ls_threshold = 0.01, max_iter_backfitting = 10):
         """
-        Iteratively fits one function for each feature in X_train
+        Iteratively fits a NAM model using one DNN per feature in
             
         Parameters: 
             X_train: training samples
             y_train: target training value ({0,1} for binomial family, regression values for gaussian family)
-            max_iter: maximum number of iterations of the Local Scoring algorithm (for binomial family only)
             w_train: (optional) training weights
-            delta_threshold: (optional) threshold to stop Local Scoring algorithm. Defaults to 0.01
+            ls_threshold: (optional) threshold to stop Local Scoring algorithm. Defaults to 0.01
+            bf_threshold: (optional) threshold to stop Backfitting algorithm. Defaults to 0.01
+            max_iter: maximum number of iterations of the Local Scoring algorithm (for binomial family only)
             max_iter_backfitting: (optional) maximum number of iterations of the Backfitting algorithm. Defaults to 10
         Returns:
             y: learnt estimator
             g: learned functions for each variable
         """
-        print("Fitting GAM - max_it = {0} ; convergence_thresold = {1}, delta_threshold={2}".format(max_iter, convergence_threshold, delta_threshold))
+        print("Fitting GAM - max_it = {0} max_iter_backfitting = {1} ; ls_threshold = {2}, bf_threshold={3}".format(max_iter_ls, max_iter_backfitting, ls_threshold, bf_threshold))
         
         #Initialization
         converged = False
@@ -91,12 +96,11 @@ class NeuralGAM(tf.keras.Model):
         index = f.columns.values
         it = 1
         self.training_err = list()
-        
         if not w_train:
             w = np.ones(len(y_train))   #input weights.... different from Local Scoring Weights!!
         
         if self._family == "gaussian":
-            max_iter = 1  # for gaussian, only one iteration of the LS is required!   
+            max_iter_ls = 1  # for gaussian, only one iteration of the LS is required!   
         
         muhat = y_train.mean()
         self.eta0 = self.inv_link(muhat)
@@ -104,7 +108,7 @@ class NeuralGAM(tf.keras.Model):
         dev_new = self.deviance(muhat, y_train, w)
         
         # Start local scoring algorithm
-        while (not converged and it <= max_iter):
+        while (not converged and it <= max_iter_ls):
             
             print("Iter Local Scoring {0}".format(it))
             
@@ -121,9 +125,9 @@ class NeuralGAM(tf.keras.Model):
             eta = self.eta0
             eta_prev = self.eta0
             
-            # Start backfitting algorithm
-            err = convergence_threshold + 0.1     
-            while( (err > convergence_threshold) and (it_backfitting <= max_iter_backfitting)):
+            # Start backfitting algorithm for max_iter_backfitting iterations inside a given LS loop
+            err = bf_threshold + 0.1     
+            while( (err > bf_threshold) and (it_backfitting <= max_iter_backfitting)):
                 # estimate each function
                 for k in range(len(X_train.columns)):
                     
@@ -131,19 +135,19 @@ class NeuralGAM(tf.keras.Model):
                     eta = eta - g[index[k]]
                     residuals = Z - eta
 
-                    # compile the model to set the loss_weights, and fit the predictor k
-                    self.feature_networks[k].compile(loss= "mean_squared_error", 
-                                                     optimizer="adam",
-                                                     loss_weights=pd.Series(W))
+                    if self._family == "binomial":
+                        self.feature_networks[k].compile(loss= "mean_squared_error", 
+                                                        optimizer="adam",
+                                                        loss_weights= pd.Series(W))
                     self.feature_networks[k].fit(X_train[X_train.columns[k]], 
                                                  residuals, 
                                                  epochs=1, 
-                                                 sample_weight=pd.Series(W)) 
+                                                 sample_weight = pd.Series(W) if self._family == "binomial" else None)
                     # Update f with current learned function for predictor k
                     f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
                     f[index[k]] = f[index[k]] - np.mean(f[index[k]])
                     eta = eta + f[index[k]]  
-                
+
                 # update current estimations
                 g = f
                 eta = self.eta0 + g.sum(axis=1)
@@ -152,7 +156,7 @@ class NeuralGAM(tf.keras.Model):
                 err = np.sum(eta - eta_prev)**2 / np.sum(eta_prev**2)
                 eta_prev = eta
                 print("BACKFITTING ITERATION #{0}: Current err = {1}".format(it_backfitting, err))
-                it_backfitting += 1
+                it_backfitting = it_backfitting + 1
                 self.training_err.append(err)
 
             muhat = self.apply_link(eta)
@@ -161,14 +165,14 @@ class NeuralGAM(tf.keras.Model):
             dev_delta = np.abs((dev_old - dev_new)/dev_old)
             
             print("Dev delta = {0}".format(dev_delta))
-            if dev_delta < delta_threshold:
+            if dev_delta < ls_threshold:
                 print("Z and f(x) converged...")
                 converged = True
             
             it+=1
         
         #  out local scoring
-        print("END Local Scoring at it {0}, dev_delta = {1}, eta0 = {2}".format(it, dev_delta, self.eta0))
+        print("END Local Scoring Algorithm at iteration {0}, dev_delta = {1}, eta0 = {2}".format(it, dev_delta, self.eta0))
         
         # Reconstruct learnt y
         self.y = self.apply_link(eta)
@@ -241,6 +245,7 @@ class NeuralGAM(tf.keras.Model):
     
     
     def apply_link(self, muhat):
+        """ Applies the link function """ 
         if self._family == "binomial":
             muhat = np.where(muhat > 10, 10, muhat)
             muhat = np.where(muhat < -10, -10, muhat)
@@ -263,7 +268,6 @@ class NeuralGAM(tf.keras.Model):
         elif self._family == "poisson":
             muhat = np.where(muhat <= 0.001, 0.001, muhat)
             return np.log(muhat)
-            
     
     def compute_err(self, actual, pred):
         """ Compute err according to the distribution family"""
@@ -286,30 +290,34 @@ class NeuralGAM(tf.keras.Model):
             return -mean_sum_score
         else:
             raise ValueError("Invalid family type")
-    
-    def save_model(self, output_path):
-        if not os.path.exists(output_path):
-            os.mkdir(output_path)
-        if os.path.exists(output_path + "/model.ngam"):
-            os.remove(output_path + "/model.ngam")
-        with open(output_path + "/model.ngam", "wb") as file:
-            dill.dump(self, file, dill.HIGHEST_PROTOCOL)
-        """
-        # TODO hablar con eugenia sobre como serializar y guardar cualquier clase...
-        import mlflow
-        mlflow.pyfunc.save_model(python_model=self, path=output_path + "/model.ngam")
-        return output_path + "/model.ngam
-        """
-    
-    def log_model(self):
-        for model in self.feature_networks:
-            import mlflow
-            mlflow.keras.log_model(model, os.environ['ARTIFACT_URI'])
-    
 
-def load_model(model_path):
-    with open(model_path, "rb") as file:
-        return dill.load(file) 
+    
+def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, output_path: str = None):    
+    import matplotlib.pyplot as plt
+    import seaborn as sns
 
-    #import mlflow
-    #return mlflow.pyfunc.load_model(model_path)
+    fig, axs = plt.subplots(nrows=1, ncols=len(fs.columns))
+    fig.suptitle(title, fontsize=10)
+    for i, term in enumerate(fs.columns):
+        data = pd.DataFrame()
+        data['x'] = x[x.columns[i]]
+        data['f(x)']= fs[fs.columns[i]]
+        # calculate confidence interval at 95%
+        ci = 1.96 * np.std(data['f(x)'])/np.sqrt(len(data['x']))
+        data['y+ci'] = data['f(x)'] + ci
+        data['y-ci'] = data['f(x)'] - ci
+        sns.lineplot(data = data, x='x', y='f(x)', color='g', ax=axs[i])
+        sns.lineplot(data = data, x='x', y='y-ci', color='r', linestyle='--', ax=axs[i])
+        sns.lineplot(data = data, x='x', y='y+ci', color='r', linestyle='--', ax=axs[i])
+        axs[i].grid()
+    
+    import matplotlib.patches as mpatches
+    CI_PATCH = mpatches.Patch(color='red', label='Confidence Intervals at 95%')
+    FX_PATCH = mpatches.Patch(color='green', label='Learned f(x) from Neural GAM')
+    
+    fig.legend(handles=[CI_PATCH, FX_PATCH], loc='lower center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5)
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
+        fig = plt.gcf()
