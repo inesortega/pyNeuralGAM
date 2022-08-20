@@ -1,26 +1,14 @@
 # Neural GAM: Neural Generalized Additive Models
 
-  **[Overview](#overview)**
-| **[NeuralGAM Visualization](#neuralgam-visualization)**
-| **[Usage](#usage)**
-
-
 NeuralGAM is a project for Generalized Additive Models (GAM) research. We provide a library which implements Neural GAMs: a way of fitting a Generalized Additive Model by learning a linear combination of Deep Neural Networks. GAMs are a class of non-parametric regression models, where each input feature is a smooth function. 
 
 ![formula](https://latex.codecogs.com/svg.image?y=&space;beta_0&space;&plus;&space;\sum_{i=1}^{N}&space;f_i(x))
 
 Each neural network attends to a single input feature. The NeuralGAM is fitted using the backfitting algorithm, where a Deep Neural Network is fitted one epoch at a time to learn a smooth function representing the smottthed fit for the residuals of all the others variables. 
 
-## Overview
+## Synthetic datasets
 
-```python
-from src.NeuralGAM.ngam import NeuralGAM
-from src.utils.utils import generate_data, plot_multiple_partial_dependencies
-```
-
-### Synthetic datasets
-
-We provide a set of datasets to test NeuralGAM for linear/logistic regression problems (folder datasets)
+We provide a set of datasets to test NeuralGAM for linear/logistic regression problems (see `datasets` folder)
 
 | Type     | Description                                    | Values |
 | -----------   | ---------------------------------------------- | ------------------------- |
@@ -30,7 +18,7 @@ We provide a set of datasets to test NeuralGAM for linear/logistic regression pr
 
 The simulation generates three different features, each modeling a different function. 
 
-### Parameters
+## Parameters
 
 The main script accepts the following parameters:
 
@@ -45,7 +33,7 @@ The main script accepts the following parameters:
 | --maxiter_ls| -ls | Maximum iterations to run the Local Scoring algorithm if it does not converge before | 10 |
 | --maxiter_bf | -bf | Maximum iterations to run the Backfitting algorithm if it does not converge before | 10 | 
 
-#### Running NeuralGAM
+## Running NeuralGAM
 
 ```bash
 python main.py -i ./dataset/heteroscedastic_uniform_gaussian -o ./results/heteroscedastic_uniform_gaussian -u 1024 -f gaussian -c 0.00001 -d 0.01 -ls 1 -bf 1
@@ -77,6 +65,7 @@ plot_partial_dependencies(x=X_train, fs=fs_train, title="Training Partial Depend
 The following image shows the resultant theoretical model from the homoscedastic_uniform_gaussian dataset (in blue), the learned functions for each feature after the training process (orange), and the predicted functions from the test set (green), for a linear regression simulation with heteroscedastic intercept and normally distributed data. 
 
 ![](functions.png)
+
 ## Usage
 
 ```bash
