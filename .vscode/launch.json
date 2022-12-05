@@ -18,7 +18,13 @@
             "request": "launch",
             "program": "main.py",
             "cwd": "${workspaceFolder}",
-            "args": ["linear" ,"-t","homoscedastic", "-d", "uniform"]
+            "args": [
+                "linear",
+                "-t",
+                "homoscedastic",
+                "-d",
+                "uniform"
+            ]
         },
         {
             "name": "Heteroscedastic Uniform",
@@ -26,7 +32,13 @@
             "request": "launch",
             "program": "main.py",
             "cwd": "${workspaceFolder}",
-            "args": ["linear", "-t","heteroscedastic", "-d", "uniform"]
+            "args": [
+                "linear",
+                "-t",
+                "heteroscedastic",
+                "-d",
+                "uniform"
+            ]
         },
         {
             "name": "Homoscedastic Normal",
@@ -34,7 +46,13 @@
             "request": "launch",
             "program": "main.py",
             "cwd": "${workspaceFolder}",
-            "args": ["linear", "-t","homoscedastic", "-d", "normal"]
+            "args": [
+                "linear",
+                "-t",
+                "homoscedastic",
+                "-d",
+                "normal"
+            ]
         },
         {
             "name": "Heteroscedastic Normal",
@@ -42,7 +60,13 @@
             "request": "launch",
             "program": "main.py",
             "cwd": "${workspaceFolder}",
-            "args": ["linear", "-t","heteroscedastic", "-d", "normal"]
+            "args": [
+                "linear",
+                "-t",
+                "heteroscedastic",
+                "-d",
+                "normal"
+            ]
         },
         {
             "name": "Logistic Normal",
@@ -50,7 +74,15 @@
             "request": "launch",
             "program": "main.py",
             "cwd": "${workspaceFolder}",
-            "args": ["logistic", "-d", "normal", "-c", "0.00001", "-a", "0.1"]
+            "args": [
+                "logistic",
+                "-d",
+                "normal",
+                "-c",
+                "0.00001",
+                "-a",
+                "0.1"
+            ]
         },
         {
             "name": "Logistic Uniform",
@@ -58,7 +90,35 @@
             "request": "launch",
             "program": "main.py",
             "cwd": "${workspaceFolder}",
-            "args": ["logistic", "-d", "uniform", "-c", "0.00001", "-a", "0.1"]
+            "args": [
+                "logistic",
+                "-d",
+                "uniform",
+                "-c",
+                "0.00001",
+                "-a",
+                "0.1"
+            ]
+        },
+        {
+            "name": "Compute Mean Estimations",
+            "type": "python",
+            "request": "launch",
+            "program": "compute_mean_estimations.py",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "results"
+            ]
+        },
+        {
+            "name": "Plots",
+            "type": "python",
+            "request": "launch",
+            "program": "plots.py",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "google"
+            ]
         }
     ]
 }

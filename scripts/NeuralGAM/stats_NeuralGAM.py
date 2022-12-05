@@ -57,14 +57,7 @@ if __name__ == "__main__":
             y_test = pd.read_csv("./dataset/{0}/y_test.csv".format(type), index_col=0).reset_index(drop=True)["0"].values
 
             all_pred = all_pred.to_numpy()
-            """
-            loss = np.apply_along_axis(lambda x: ((x - y_test) ** 2).mean(), axis=0, arr=all_pred)
-            avg_expected_loss = loss.mean()
-            mean_predictions = np.mean(all_pred, axis=1)
-            avg_bias = np.sum((mean_predictions - y_test) ** 2) / y_test.size
-            avg_var = avg_expected_loss - avg_bias**2
-            """
-
+            
             # Bias: for each x, mean of 1000 estimations of x_i - y_test (averaged)
             bias = (all_pred.mean(axis=1) - y_test).mean()
             # Variane: variance of 1000 estimations, for each x_i (averaged)

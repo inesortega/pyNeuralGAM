@@ -1,5 +1,3 @@
-from sqlalchemy import column
-from src.utils.utils import plot_multiple_partial_dependencies
 import tensorflow.compat.v2 as tf
 tf.enable_v2_behavior()
 import models as nam_models
@@ -142,8 +140,8 @@ def get_feature_predictions(nn_model, features, batch_size=256):
 
 def compute_features(x_data):
   single_features = np.split(x_data, x_data.shape[1], axis=1)
-  unique_features = [np.unique(f, axis=0) for f in single_features]
-  return unique_features
+  #unique_features = [np.unique(f, axis=0) for f in single_features]
+  return single_features
 
 def compute_mean_feature_importance(avg_hist_data, MEAN_PRED):
   mean_abs_score = {}
@@ -192,7 +190,7 @@ def plot_mean_feature_importance(x1, x2, width = 0.3):
   plt.xticks(ind + width/2, cols_here, rotation=90, fontsize='large')
   plt.ylabel('Mean Absolute Score', fontsize='x-large')
   plt.legend(loc='top right', fontsize='large')
-  plt.title(f'Overall Importance: {dataset_name}', fontsize='x-large')
+  plt.title(f'Overall Importance:', fontsize='x-large')
   plt.show()
   return fig
 
@@ -317,6 +315,7 @@ if __name__ == "__main__":
         
   # add exec type
   data_type_path = "_".join(list(variables.values())) 
+  #data_type_path = "google"
   path = path + "/" + data_type_path
   if not os.path.exists(path):
       os.mkdir(path)
@@ -344,7 +343,7 @@ if __name__ == "__main__":
             x_train=X_train,
             dropout=0.0,
             feature_dropout=0.0,
-            activation="relu",
+            activation="exu",
             num_basis_functions=1024,
             shallow=True,
             units_multiplier=1,
@@ -382,12 +381,19 @@ if __name__ == "__main__":
   test_predictions = get_test_predictions(nn_model, X_test)
   train_predictions = get_test_predictions(nn_model, X_train)
   unique_features = compute_features(X_test)
-  #feature_predictions = get_feature_predictions(nn_model, unique_features)
+  unique_features_train = compute_features(X_train)
+  
+  feature_predictions = get_feature_predictions(nn_model, unique_features)
+  feature_predictions_train = get_feature_predictions(nn_model, unique_features_train)
+
 
   feature_predictions = {}
   for i, feat in enumerate(unique_features):
     feature_predictions[column_names[i]] = nn_model.feature_nns[i](feat, training=nn_model._false)
 
+  feature_predictions_train = {}
+  for i, feat in enumerate(unique_features_train):
+    feature_predictions_train[column_names[i]] = nn_model.feature_nns[i](feat, training=nn_model._false)
 
   if regression is False:
     # compute both ROC-AUC
@@ -424,7 +430,8 @@ if __name__ == "__main__":
 
   NUM_FEATURES = X_test.shape[1]
   SINGLE_FEATURES = np.split(X_test, NUM_FEATURES, axis=1)
-  UNIQUE_FEATURES = [np.unique(x, axis=0) for x in SINGLE_FEATURES]
+  UNIQUE_FEATURES = SINGLE_FEATURES
+  #UNIQUE_FEATURES = [np.unique(x, axis=0) for x in SINGLE_FEATURES]
   
   SINGLE_FEATURES_ORIGINAL = {}
   UNIQUE_FEATURES_ORIGINAL = {}
@@ -444,12 +451,12 @@ if __name__ == "__main__":
         SINGLE_FEATURES[i][:, 0], min_val, max_val)
 
   fs_pred = pd.DataFrame.from_dict(feature_predictions)
-  x_pred = pd.DataFrame(UNIQUE_FEATURES_ORIGINAL)
+  fs_train = pd.DataFrame.from_dict(feature_predictions_train)
 
-  x_list = [X_test, x_pred]
-  fs_list = [fs_test, fs_pred]
+  x_pred = pd.DataFrame(UNIQUE_FEATURES_ORIGINAL)
 
   """ SAVE RESULTS"""
   pd.DataFrame(fs_pred).to_csv(path + "/fs_test_estimated.csv")
+  pd.DataFrame(fs_train).to_csv(path + "/fs_train_estimated.csv")
   pd.DataFrame(test_predictions).to_csv(path + "/y_pred.csv")
   pd.DataFrame.from_dict(variables, orient="index").transpose().to_csv(path + "/variables.csv", index=False)

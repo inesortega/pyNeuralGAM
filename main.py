@@ -110,7 +110,7 @@ if __name__ == "__main__":
     results = dict()
 
     results["muhat"] = str(muhat)
-    results["MSE_train"] = str(muhat)
+    results["MSE_train"] = str(err)
 
     print("Starting Predict...")
     y_pred = ngam.predict(X_test)

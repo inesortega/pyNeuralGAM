@@ -7,10 +7,32 @@ import matplotlib.patches as mpatches
 matplotlib.use('Agg') 
 import os
 import seaborn as sns
-import sys
+
 
 if __name__ == "__main__":
     
+    def inverse_min_max_scaler(x, min_val, max_val):
+        return (x + 1)/2 * (max_val - min_val) + min_val    
+
+    def preprocess_x_test(X_test):
+        NUM_FEATURES = X_test.shape[1]
+        SINGLE_FEATURES = np.split(X_test, NUM_FEATURES, axis=1)
+        UNIQUE_FEATURES = [np.unique(x, axis=0) for x in SINGLE_FEATURES]
+        
+        UNIQUE_FEATURES_ORIGINAL = {}
+
+        col_min_max = {}
+        for col in X_test.columns:
+            unique_vals = X_test[col].unique()
+            col_min_max[col] = (np.min(unique_vals), np.max(unique_vals))
+
+        for i, col in enumerate(X_test.columns):
+            min_val, max_val = col_min_max[col]
+            UNIQUE_FEATURES_ORIGINAL[col] = inverse_min_max_scaler(
+                UNIQUE_FEATURES[i][:, 0], min_val, max_val)
+
+        return pd.DataFrame(UNIQUE_FEATURES_ORIGINAL)
+
     def compute_mean_estimations(X_train):
         f_list = list()
         mean_estimations = pd.DataFrame()
@@ -20,10 +42,10 @@ if __name__ == "__main__":
             f_list.append(pd.DataFrame())
 
         for j in range(1, RANGE_SIZE+1):
-            fs_estimated_i = pd.read_csv(os.path.join(path, str(j), type, "fs_test_estimated.csv"), index_col=0).reset_index(drop=True)
+            fs_estimated_i = pd.read_csv("./results-nam/{0}/{1}/fs_test_estimated.csv".format(j, type), index_col=0).reset_index(drop=True)
             
-            for i, f in enumerate(f_list):
-                f_list[i] = pd.concat([f_list[i], fs_estimated_i[str(i)]], axis=1)
+            for i, col in enumerate(fs_estimated_i.columns):
+                f_list[i] = pd.concat([f_list[i], fs_estimated_i[col]], axis=1)
 
         for i, f in enumerate(f_list):
             mean_estimations[i] = f_list[i].mean(axis=1)
@@ -32,53 +54,38 @@ if __name__ == "__main__":
         
         return mean_estimations.reset_index(drop=True), q975.reset_index(drop=True), q025.reset_index(drop=True)
 
-
-    # get random number of iterations on range [1, 1000]
-
-    list_of_arguments = sys.argv
-    if (len(list_of_arguments) < 2):
-        print("You must provide an input folder: python stats.py FOLDER")
-    
-    input_folder = list_of_arguments[1]
-
-    print("generating random plots from {0}...".format(input_folder))
-
     rel_path = "./"
-    path = os.path.normpath(os.path.abspath(os.path.join("./", input_folder)))
+    path = os.path.normpath(os.path.abspath(rel_path))
     
     RANGE_SIZE = 1000
 
     fig, axs = plt.subplots(nrows=1, ncols=1)
     
-    types = [x[1] for x in os.walk(os.path.join(path, '1'))][0] # get subdirs, for instance   ["homoscedastic_uniform_gaussian", "heteroscedastic_uniform_gaussian", "uniform_binomial"]
+    plot_types = ["homoscedastic_uniform_gaussian", "heteroscedastic_uniform_gaussian", "uniform_binomial"]
 
-    for type in types:
+    for type in plot_types:
         try:
-            output_path = os.path.join(path, type)
-            if not os.path.exists(output_path):
-                os.mkdir(output_path)
-
-            X_test = pd.read_csv("./dataset/{0}/X_test.csv".format(type), index_col=0).reset_index(drop=True)
-            fs_test = pd.read_csv("./dataset/{0}/fs_test.csv".format(type), index_col=0).reset_index(drop=True)
+            X_train = pd.read_csv("./dataset/{0}/X_train.csv".format(type), index_col=0).reset_index(drop=True)
+            fs_train = pd.read_csv("./dataset/{0}/fs_train.csv".format(type), index_col=0).reset_index(drop=True)
             
             X_test = pd.read_csv("./dataset/{0}/X_test.csv".format(type), index_col=0).reset_index(drop=True)
-            
+            X_test = preprocess_x_test(X_test)
             # center theoretical fs for plotting
-            fs_test = fs_test - fs_test.mean()
+            fs_train = fs_train - fs_train.mean()
 
             fig, axs = plt.subplots(nrows=1, ncols=3)
 
             print("Generating " + type + " plots")
-            #fig.suptitle("Theoretical training data and estimated functions (1000 iterations) \n " + type, fontsize=10)
+            fig.suptitle("Theoretical training data and estimated functions (1000 iterations) \n " + type, fontsize=10)
             
-            mean_estimations, q975, q025 = compute_mean_estimations(X_test)
+            mean_estimations, q975, q025 = compute_mean_estimations(X_train)
 
-            for i, term in enumerate(X_test.columns):
+            for i, term in enumerate(X_train.columns):
                 data = pd.DataFrame()
                 
                 # Plot theoretical f(x)
-                data['x'] = X_test[str(i)]
-                data['y'] = fs_test[str(i)]
+                data['x'] = X_train[term]
+                data['y'] = fs_train[term]
                 sns.lineplot(data = data, x='x', y='y', color='red', ax=axs[i])
 
                 #Plot mean estimation
@@ -105,9 +112,9 @@ if __name__ == "__main__":
                 
             #plt.subplots_adjust(right=0.85) #make space for the legend
             
-            #axs[0].set_title("f(x) = x\N{SUBSCRIPT ONE}\u00b2")
-            #axs[1].set_title("f(x) = 2x\N{SUBSCRIPT TWO}")
-            #axs[2].set_title("f(x) = sen(x\N{SUBSCRIPT THREE})")
+            axs[0].set_title("f(x) = x\N{SUBSCRIPT ONE}\u00b2")
+            axs[1].set_title("f(x) = 2x\N{SUBSCRIPT TWO}")
+            axs[2].set_title("f(x) = sen(x\N{SUBSCRIPT THREE})")
             
             theoretical_patch = mpatches.Patch(color='red', label='Theoretical f(x)')
             learned_patch = mpatches.Patch(color='green', label='Mean estimation of f(x)')
@@ -116,7 +123,7 @@ if __name__ == "__main__":
             fig.legend(handles=[theoretical_patch, learned_patch, quantiles], loc='lower center', bbox_to_anchor=(0.5, -0.05),
             fancybox=True, shadow=True, ncol=5)
             plt.tight_layout()
-            plt.savefig(os.path.join(output_path, type) + ".png", dpi = 300, bbox_inches = "tight")
+            plt.savefig("./" + type + ".png", dpi = 300, bbox_inches = "tight")
 
         except Exception as e:
             print(e) 

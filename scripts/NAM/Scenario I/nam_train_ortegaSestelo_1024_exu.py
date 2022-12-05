@@ -42,8 +42,8 @@ max_checkpoints_to_keep = 1
 save_checkpoint_every_n_epochs = 10
 n_models = 1
 fold_num = 1
-activation = "relu"
-debug = True
+activation = "exu"
+debug = False
 use_dnn = False
 early_stopping_epochs = 100
 _N_FOLDS = 1
@@ -417,7 +417,7 @@ if __name__ == '__main__':
     path = os.path.normpath(os.path.abspath(rel_path))
     #add iteration
     if not os.path.exists(path):
-        os.mkdir(path)
+        os.makedirs(path)
 
   else:
     rel_path = "./{0}/".format(output_folder)
