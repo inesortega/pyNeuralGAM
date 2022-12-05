@@ -7,9 +7,9 @@
 
 NeuralGAM is a project for Generalized Additive Models (GAM) research. We provide a library which implements Neural GAMs: a way of fitting a Generalized Additive Model by learning a linear combination of Deep Neural Networks. GAMs are a class of non-parametric regression models, where each input feature is a smooth function. 
 
-![formula](https://latex.codecogs.com/svg.image?y=&space;beta_0&space;&plus;&space;\sum_{i=1}^{N}&space;f_i(x))
+![formula](https://latex.codecogs.com/gif.latex?E%5BY%7C%5Ctextbf%7BX%7D%5D%20%3D%20%5Ceta%28%5Calpha%20&plus;%20f_1%28X_1%29%20&plus;%20...%20&plus;%20f_p%28X_p%29%29)
 
-Each neural network attends to a single input feature. The NeuralGAM is fitted using the backfitting algorithm, where a Deep Neural Network is fitted one epoch at a time to learn a smooth function representing the smottthed fit for the residuals of all the others variables. 
+Each neural network attends to a single input feature. The NeuralGAM is fitted using the backfitting and local scoring algorithms, where a Deep Neural Network is fitted one epoch at a time to learn a smooth function representing the smottthed fit for the residuals of all the others variables. 
 
 ## Overview
 
