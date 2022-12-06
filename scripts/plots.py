@@ -10,13 +10,14 @@ import seaborn as sns
 import sys
 
 plt.style.use('seaborn')
+
 params = {"axes.linewidth": 2,
-          "font.size": 30, 
-          "font.family": "serif",
-          "axes.labelsize": 30}
+        "font.size": 30, 
+        "font.family": "serif",
+        "axes.labelsize": 30}
 
+matplotlib.rcParams['agg.path.chunksize'] = 10000
 plt.rcParams.update(params)
-
 
 if __name__ == "__main__":
     
@@ -31,8 +32,16 @@ if __name__ == "__main__":
     rel_path = "./"
     path = os.path.normpath(os.path.abspath(os.path.join("./", input_folder)))
     
-    types = [x[1] for x in os.walk(os.path.join(path, '1'))][0] # get subdirs, for instance   ["homoscedastic_uniform_gaussian", "heteroscedastic_uniform_gaussian", "uniform_binomial"]
+    nam = list_of_arguments[2]
 
+    if nam == "nam":
+        is_nam = True
+
+    else:
+        is_nam = False
+
+    types = os.listdir(os.path.join(path, os.listdir(path)[0]))
+    
     for type in types:
         try:
             output_path = os.path.join(path, type)
@@ -46,6 +55,7 @@ if __name__ == "__main__":
             fs_train = fs_train - fs_train.mean()
 
             print("Generating " + type + " plots")
+            
             fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(25,20))
             
             # Set tick font size
@@ -75,18 +85,20 @@ if __name__ == "__main__":
                 # draw quantiles
                 data['q975'] = q975[str(i)]
                 data['q025'] = q025[str(i)]
-                sns.lineplot(data = data, x='x', y='q975', color='coral', linestyle='--', alpha=0.5, ax=axs[i])
-                sns.lineplot(data = data, x='x', y='q025', color='coral', linestyle='--', alpha=0.5, ax=axs[i])
+
+                sns.lineplot(data = data, x='x', y='q975', color='coral', alpha=0.5, ax=axs[i])
+                axs[i].lines[-1].set_linestyle('--')
+                sns.lineplot(data = data, x='x', y='q025', color='coral', alpha=0.5, ax=axs[i])
+                axs[i].lines[-1].set_linestyle('--')
                 
-            
             axs[0].set_xlabel(f"$X_1$")
-            axs[0].set_ylabel(f"$f(x)$")
+            axs[0].set_ylabel(f"$f(x_1)$")
             
             axs[1].set_xlabel(f"$X_2$")
-            axs[1].set_ylabel(f"$f(x)$")
+            axs[1].set_ylabel(f"$f(x_2)$")
 
             axs[2].set_xlabel(f"$X_3$")
-            axs[2].set_ylabel(f"$f(x)$")
+            axs[2].set_ylabel(f"$f(x_3)$")
 
             """theoretical_patch = mpatches.Patch(color='royalblue', label='Theoretical f(x)')
             learned_patch = mpatches.Patch(color='mediumseagreen', label='Learned $\hat{f}(x)$')
@@ -97,7 +109,7 @@ if __name__ == "__main__":
             fancybox=True, shadow=True)
             """
             plt.tight_layout()
-            plt.savefig(os.path.join(output_path, type) + ".png", dpi=500, bbox_inches = "tight")
+            plt.savefig(os.path.join(output_path, type) + ".png", dpi=100, bbox_inches = "tight")
             
         except Exception as e:
             print(e) 
