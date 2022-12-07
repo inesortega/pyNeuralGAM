@@ -158,7 +158,7 @@ def youden(y_true, y_score):
     return thresholds[idx]
     
 def split(X, y, fs):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.02, shuffle=True)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=True)
     
     fs_train = fs.iloc[X_train.index].reset_index(drop=True)
     fs_test = fs.iloc[X_test.index].reset_index(drop=True)

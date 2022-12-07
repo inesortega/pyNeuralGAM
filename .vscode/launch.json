@@ -111,13 +111,13 @@
             ]
         },
         {
-            "name": "Plots",
+            "name": "Stats",
             "type": "python",
             "request": "launch",
-            "program": "plots.py",
+            "program": "stats.py",
             "cwd": "${workspaceFolder}",
             "args": [
-                "google"
+                "results"
             ]
         }
     ]

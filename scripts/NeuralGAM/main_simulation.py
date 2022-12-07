@@ -7,7 +7,6 @@ from src.utils.utils import generate_data, split, youden
 from src.NeuralGAM.ngam import NeuralGAM
 import pandas as pd
 from datetime import datetime
-from src.utils.utils import plot_multiple_partial_dependencies
 
 parser = argparse.ArgumentParser()
 
@@ -47,28 +46,31 @@ linear_regression_parser.add_argument(
     help="""Output folder"""
 )
 
-"""linear_regression_parser.add_argument(
-    "-n",
-    "--neurons",
-    default=1024,
-    type=int,
-    metavar="Number of neurons per hidden layer"
-)
-
-linear_regression_parser.add_argument(
-    "-l",
-    "--layers",
-    default=1,
-    type=int,
-    metavar="Number of hidden layers"
-)"""
 linear_regression_parser.add_argument(
     "-c",
     "--convergence_threshold",
     default=0.00001,
     type=float,
-    metavar="Convergence Threshold of Backfitting algorithm"
+    metavar="Convergence Threshold of backfitting algorithm"
 )
+
+linear_regression_parser.add_argument(
+    "-a",
+    "--delta_threshold",
+    default=0.01,
+    type=float,
+    metavar="Convergence Threshold of LS algorithm"
+)
+
+linear_regression_parser.add_argument(
+    "-u",
+    "--units",
+    default=1024,
+    type=str,
+    dest="units",
+    help="""Number of hidden units (i.e. 1024). If a list of values is provided, the neural network will add one hidden layer witch each number of units [1024, 512, 256] will generate a DNN with three hidden layers"""
+)
+
 linear_regression_parser.set_defaults(family='gaussian')
 
 logistic_regression_parser = subparsers.add_parser(name='logistic', help="Logistic Regression")
@@ -104,6 +106,14 @@ logistic_regression_parser.add_argument(
     type=float,
     metavar="Convergence Threshold of LS algorithm"
 )
+logistic_regression_parser.add_argument(
+    "-u",
+    "--units",
+    default=1024,
+    type=str,
+    dest="units",
+    help="""Number of hidden units (i.e. 1024). If a list of values is provided, the neural network will add one hidden layer witch each number of units [1024, 512, 256] will generate a DNN with three hidden layers"""
+)
 
 logistic_regression_parser.add_argument(
     "-o",
@@ -136,7 +146,7 @@ if __name__ == "__main__":
     
     conv_threshold = variables.pop("convergence_threshold", 0.01)
     delta_threshold = variables.pop("delta_threshold", 0.00001)
-
+    units = variables.pop("units", 1024)
     variables.pop("iteration")
     print(variables)
     
@@ -145,7 +155,7 @@ if __name__ == "__main__":
         path = os.path.normpath(os.path.abspath(rel_path))
         #add iteration
         if not os.path.exists(path):
-            os.mkdir(path)
+            os.makedirs(path)
 
     else:
         rel_path = "./{0}/".format(output_folder)
@@ -155,9 +165,11 @@ if __name__ == "__main__":
     data_type_path = "_".join(list(variables.values()))
     path = path + "/" + data_type_path
     if not os.path.exists(path):
-        os.mkdir(path)
+        os.makedirs(path)
 
     """ Load dataset """
+
+    print(f"Using {data_type_path}")
     try:
         X_train = pd.read_csv("./dataset/{0}/X_train.csv".format(data_type_path), index_col=0).reset_index(drop=True)
         fs_train = pd.read_csv("./dataset/{0}/fs_train.csv".format(data_type_path), index_col=0).reset_index(drop=True)
@@ -167,28 +179,33 @@ if __name__ == "__main__":
         fs_test = pd.read_csv("./dataset/{0}/fs_test.csv".format(data_type_path), index_col=0).reset_index(drop=True)
         y_test = pd.read_csv("./dataset/{0}/y_test.csv".format(data_type_path), index_col=0).reset_index(drop=True).squeeze()
     except Exception as e:
-        """Not found, generate"""
-
-        print("Dataset not found!")
-        X, y, fs = generate_data(nrows=25000, type=type, distribution=distribution, family=family, output_folder=path)
-        X_train, X_test, y_train, y_test, fs_train, fs_test = split(X, y, fs)
-        
-        print("\n Number of elements per class on training set")
-        print(pd.DataFrame(np.where(y >= 0.5, 1, 0)).value_counts())
+        print(e)
+        import traceback
+        traceback.print_exc()
         
     
     if family == "binomial":
         y_train_binomial = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
         y_test_binomial =  np.random.binomial(n=1, p=y_test, size=y_test.shape[0])
-        ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family, depth=1, num_units=1024)
+        ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family, num_units=units)
         tstart = datetime.now()
-        muhat, gs_train = ngam.fit(X_train = X_train, y_train = y_train_binomial, max_iter = 10, convergence_threshold=conv_threshold, delta_threshold=delta_threshold)
+        muhat, gs_train = ngam.fit(X_train = X_train, 
+                                y_train = y_train_binomial, 
+                                max_iter_ls = 10, 
+                                bf_threshold=conv_threshold,
+                                ls_threshold=delta_threshold,
+                                max_iter_backfitting=10)
         tend = datetime.now()
 
     else:
-        ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family, num_units=1024, depth=4)
+        ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family, num_units=units)
         tstart = datetime.now()
-        muhat, gs_train = ngam.fit(X_train = X_train, y_train = y_train, max_iter = 10, convergence_threshold=conv_threshold, delta_threshold=delta_threshold)
+        muhat, gs_train = ngam.fit(X_train = X_train, 
+                                y_train = y_train, 
+                                max_iter_ls = 10, 
+                                bf_threshold=conv_threshold,
+                                ls_threshold=delta_threshold,
+                                max_iter_backfitting=10)
         tend = datetime.now()
     
     training_seconds = (tend - tstart).seconds

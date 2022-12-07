@@ -293,15 +293,26 @@ class NeuralGAM(tf.keras.Model):
 
     
 def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, output_path: str = None):    
+    import matplotlib
     import matplotlib.pyplot as plt
     import seaborn as sns
+    plt.style.use('seaborn')
 
-    fig, axs = plt.subplots(nrows=1, ncols=len(fs.columns))
+    params = {"axes.linewidth": 2,
+            "font.size": 30, 
+            "font.family": "serif",
+            "axes.labelsize": 30}
+
+    matplotlib.rcParams['agg.path.chunksize'] = 10000
+    plt.rcParams.update(params)
+
+    fig, axs = plt.subplots(nrows=1, ncols=len(fs.columns), figsize=(25,20))
     fig.suptitle(title, fontsize=10)
     for i, term in enumerate(fs.columns):
         data = pd.DataFrame()
         data['x'] = x[x.columns[i]]
         data['f(x)']= fs[fs.columns[i]]
+        
         # calculate confidence interval at 95%
         ci = 1.96 * np.std(data['f(x)'])/np.sqrt(len(data['x']))
         data['y+ci'] = data['f(x)'] + ci

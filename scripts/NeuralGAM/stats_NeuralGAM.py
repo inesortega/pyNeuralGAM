@@ -19,7 +19,7 @@ if __name__ == "__main__":
     RANGE_SIZE = 1000
     print("generating statistics reading data from {0}".format(path))
 
-    types = [x[1] for x in os.walk(os.path.join(path, '1'))][0] # get subdirs, for instance   ["homoscedastic_uniform_gaussian", "heteroscedastic_uniform_gaussian", "uniform_binomial"]
+    types = os.listdir(os.path.join(path, os.listdir(path)[0]))
 
     all_pred = np.zeros(RANGE_SIZE, dtype=object)   # for 0-1 loss you might need int64
 
@@ -35,9 +35,16 @@ if __name__ == "__main__":
             training_seconds = pd.DataFrame()
             all_pred = pd.DataFrame()
 
-            for j in range(1, RANGE_SIZE+1):
-                variables = pd.read_csv(os.path.join(path, str(j), type) + "/variables.csv", index_col=0).reset_index(drop=True)
+            dirs = os.listdir(path)
 
+            for j in dirs:
+
+                if j.isnumeric():
+                    j = int(j)
+                else:
+                    # skip subdir which contains type folder instead of iteration number
+                    continue
+                variables = pd.read_csv(os.path.join(path, str(j), type) + "/variables.csv", index_col=0).reset_index(drop=True)
                 try:
                     variables_training = pd.read_csv(os.path.join(path, str(j), type) + "/variables_training.csv", index_col=0).reset_index(drop=True)
                     training_seconds = pd.concat([training_seconds, variables_training["training_seconds"]], axis=0)

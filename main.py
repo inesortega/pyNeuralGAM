@@ -82,7 +82,6 @@ if __name__ == "__main__":
         os.makedirs(output_path)
 
     input_path = os.path.normpath(os.path.abspath(os.path.join("./", variables["input"])))
-    
     print("Starting --- INPUT {0}, OUTPUT {1}".format(input_path, output_path))
 
     """ Load dataset -- if you want to preprocess or select some features, do it here"""
@@ -95,7 +94,6 @@ if __name__ == "__main__":
     except Exception as e:
         print("Failed to load data from {0}: {1}".format(input_path, e))
         exit(-1)
-
 
     print("Startint NeuralGAM training  with {0} rows...".format(X_train.shape[0]))
     ngam = NeuralGAM(num_inputs = len(X_train.columns), family=variables["family"], num_units=units)
