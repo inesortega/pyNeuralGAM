@@ -53,113 +53,40 @@ DatasetType = data_utils.DatasetType
 GraphOpsAndTensors = graph_builder.GraphOpsAndTensors
 EvaluationMetric = graph_builder.EvaluationMetric
 
+
 parser = argparse.ArgumentParser()
 
-subparsers = parser.add_subparsers(help='Choose wether to use Linear (linear) or Logistic (logistic) Regression')
-
-linear_regression_parser = subparsers.add_parser(name='linear', help="Linear Regression")
-linear_regression_parser.add_argument(
+parser.add_argument(
+    "-i",
+    "--input",
+    default="./dataset/google",
+    dest="input",
+    type=str,
+    help="""Input folder - place here X_train, y_train, etc..."""
+)
+parser.add_argument(
+    "-o",
+    "--output",
+    default="results",
+    dest="output",
+    type=str,
+    help="""Output folder - results and model"""
+)
+parser.add_argument(
+    "-f",
+    "--family",
+    default="gaussian",
+    type=str,
+    metavar="Distribution Family. Use gaussian for LINEAR REGRESSION and binomial for LOGISTIC REGRESSION"
+)
+parser.add_argument(
     "-t",
-    "--type",
-    default="homoscedastic",
-    metavar="{homoscedastic, heteroscedastic} ",
-    dest="type",
-    type=str,
-    help="""Choose wether to generate a homoscesdastic or heteroscedastic epsilon term"""
-)
-linear_regression_parser.add_argument(
-    "-d",
-    "--distribution",
-    default="uniform",
-    type=str,
-    metavar="{uniform, normal} ",
-    help="Choose wether to generate normal or uniform distributed dataset"
-)
-linear_regression_parser.add_argument(
-    "-i",
     "--iteration",
-    default=None,
-    type=int,
-    metavar="N_iteration (for simulations)"
-)
-
-linear_regression_parser.add_argument(
-    "-o",
-    "--output",
-    default="results",
-    dest="output",
-    type=str,
-    help="""Output folder"""
-)
-
-"""linear_regression_parser.add_argument(
-    "-n",
-    "--neurons",
-    default=1024,
-    type=int,
-    metavar="Number of neurons per hidden layer"
-)
-
-linear_regression_parser.add_argument(
-    "-l",
-    "--layers",
     default=1,
+    dest="iteration",
     type=int,
-    metavar="Number of hidden layers"
-)"""
-linear_regression_parser.add_argument(
-    "-c",
-    "--convergence_threshold",
-    default=0.00001,
-    type=float,
-    metavar="Convergence Threshold of Backfitting algorithm"
+    help="""Iteration number"""
 )
-
-linear_regression_parser.set_defaults(family='gaussian')
-
-logistic_regression_parser = subparsers.add_parser(name='logistic', help="Logistic Regression")
-logistic_regression_parser.add_argument(
-    "-d",
-    "--distribution",
-    default="uniform",
-    type=str,
-    metavar="{uniform, normal} ",
-    help="Choose wether to generate normal or uniform distributed dataset"
-)
-
-logistic_regression_parser.add_argument(
-    "-i",
-    "--iteration",
-    default=None,
-    type=int,
-    metavar="N_iteration (for simulations)"
-)
-
-logistic_regression_parser.add_argument(
-    "-c",
-    "--convergence_threshold",
-    default=0.00001,
-    type=float,
-    metavar="Convergence Threshold of backfitting algorithm"
-)
-
-logistic_regression_parser.add_argument(
-    "-a",
-    "--delta_threshold",
-    default=0.01,
-    type=float,
-    metavar="Convergence Threshold of LS algorithm"
-)
-logistic_regression_parser.add_argument(
-    "-o",
-    "--output",
-    default="results",
-    dest="output",
-    type=str,
-    help="""Output folder"""
-)
-
-logistic_regression_parser.set_defaults(family='binomial')
 
 def _get_train_and_lr_decay_ops(
     graph_tensors_and_ops,
@@ -177,7 +104,6 @@ def _get_train_and_lr_decay_ops(
   ]
   return train_ops, lr_decay_ops
 
-
 def _update_latest_checkpoint(checkpoint_dir,
                               best_checkpoint_dir):
   """Updates the latest checkpoint in `best_checkpoint_dir` from `checkpoint_dir`."""
@@ -188,7 +114,6 @@ def _update_latest_checkpoint(checkpoint_dir,
         name,
         os.path.join(best_checkpoint_dir, os.path.basename(name)),
         overwrite=True)
-
 
 def _create_computation_graph(
     x_train, y_train, x_validation,
@@ -222,7 +147,6 @@ def _create_computation_graph(
     metric_scores.append(metric_scores_n)
   return graph_tensors_and_ops, metric_scores
 
-
 def _create_graph_saver(graph_tensors_and_ops,
                         logdir, num_steps_per_epoch):
   """Create saving hook(s) as well as model and checkpoint directories."""
@@ -243,7 +167,6 @@ def _create_graph_saver(graph_tensors_and_ops,
         checkpoint_dir=model_dirs[-1], save_steps=save_steps, scaffold=scaffold)
     saver_hooks.append(saver_hook)
   return saver_hooks, model_dirs, best_checkpoint_dirs
-
 
 def _update_metrics_and_checkpoints(sess,
                                     epoch,
@@ -270,7 +193,6 @@ def _update_metrics_and_checkpoints(sess,
     # there is a better result
     _update_latest_checkpoint(model_dir, best_checkpoint_dir)
   return curr_best_epoch, best_validation_metric, best_train_metric
-
 
 def training(x_train, y_train, x_validation,
              y_validation, regression,
@@ -400,35 +322,27 @@ if __name__ == '__main__':
   args = parser.parse_args()
   variables = vars(args)
 
+  output_folder = os.path.normpath(os.path.abspath(os.path.join("./", variables["output"])))
+
+  if not os.path.exists(output_folder):
+      os.makedirs(output_folder)
+
+  input_path = os.path.normpath(os.path.abspath(os.path.join("./", variables["input"])))
+  
+  print("Starting --- INPUT {0}, OUTPUT {1}".format(input_path, output_folder))
+
   type = variables.get("type", None)
-  distribution = variables["distribution"]
   family = variables["family"]    # gaussian / binomial
   iteration = variables["iteration"]
 
-  conv_threshold = variables.pop("convergence_threshold", 0.01)
-  delta_threshold = variables.pop("delta_threshold", 0.00001)
-
-  variables.pop("iteration")
-  print(variables)
-  output_folder = variables.pop("output", "results")
-
   if iteration is not None:
-    rel_path = "./{0}/{1}".format(output_folder,iteration)
-    path = os.path.normpath(os.path.abspath(rel_path))
+    path = os.path.normpath(os.path.join(output_folder, str(iteration)))
     #add iteration
     if not os.path.exists(path):
         os.makedirs(path)
-
   else:
-    rel_path = "./{0}/".format(output_folder)
-    path = os.path.normpath(os.path.abspath(rel_path))
+    path = os.path.normpath(output_folder)
       
-  # add exec type
-  data_type_path = "_".join(list(variables.values())) 
-  path = os.path.normpath(os.path.join(path, data_type_path))
-  if not os.path.exists(path):
-    os.mkdir(path)
-
   logdir = path + "/model"
   print("Saving results on " + path)
 
@@ -440,21 +354,21 @@ if __name__ == '__main__':
   except:
     pass
 
-  X_train = pd.read_csv("./dataset/{0}/X_train.csv".format(data_type_path), index_col=0, dtype=np.float32).reset_index(drop=True)
+  X_train = pd.read_csv("{0}/X_train.csv".format(input_path), index_col=0, dtype=np.float32).reset_index(drop=True)
   X_train.columns = X_train.columns.map(int)
   X_train = X_train.to_numpy()
   
-  fs_train = pd.read_csv("./dataset/{0}/fs_train.csv".format(data_type_path), index_col=0).reset_index(drop=True)
+  fs_train = pd.read_csv("{0}/fs_train.csv".format(input_path), index_col=0).reset_index(drop=True)
   
-  y_train = pd.read_csv("./dataset/{0}/y_train.csv".format(data_type_path), index_col=0, dtype=np.float32).reset_index(drop=True).squeeze()
+  y_train = pd.read_csv("{0}/y_train.csv".format(input_path), index_col=0, dtype=np.float32).reset_index(drop=True).squeeze()
   y_train = y_train.to_numpy()
 
-  X_test = pd.read_csv("./dataset/{0}/X_test.csv".format(data_type_path), index_col=0, dtype=np.float32).reset_index(drop=True)
+  X_test = pd.read_csv("{0}/X_test.csv".format(input_path), index_col=0, dtype=np.float32).reset_index(drop=True)
   X_test = X_test.to_numpy()
 
-  fs_test = pd.read_csv("./dataset/{0}/fs_test.csv".format(data_type_path), index_col=0).reset_index(drop=True)
+  fs_test = pd.read_csv("{0}/fs_test.csv".format(input_path), index_col=0).reset_index(drop=True)
   
-  y_test = pd.read_csv("./dataset/{0}/y_test.csv".format(data_type_path), index_col=0, dtype=np.float32).reset_index(drop=True).squeeze()
+  y_test = pd.read_csv("{0}/y_test.csv".format(input_path), index_col=0, dtype=np.float32).reset_index(drop=True).squeeze()
   y_test = y_test.to_numpy()
 
   regression = False
@@ -469,7 +383,4 @@ if __name__ == '__main__':
     pd.DataFrame(y_train_binomial).to_csv(path + "/y_train_binomial.csv")
     pd.DataFrame(y_test_binomial).to_csv(path + "/y_test_binomial.csv")
 
-  pd.DataFrame.from_dict(variables, orient="index").transpose().to_csv(path + "/variables_training.csv", index=False)  
-  
-  
-    
+  pd.DataFrame.from_dict(variables, orient="index").transpose().to_csv(path + "/variables_training.csv", index=False)

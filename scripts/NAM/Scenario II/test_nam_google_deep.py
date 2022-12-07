@@ -1,5 +1,3 @@
-from sqlalchemy import column
-from src.utils.utils import plot_multiple_partial_dependencies
 import tensorflow.compat.v2 as tf
 tf.enable_v2_behavior()
 import models as nam_models
@@ -11,92 +9,39 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import argparse
 
+
 parser = argparse.ArgumentParser()
-subparsers = parser.add_subparsers(help='Choose wether to use Linear (linear) or Logistic (logistic) Regression')
-linear_regression_parser = subparsers.add_parser(name='linear', help="Linear Regression")
-linear_regression_parser.add_argument(
+parser.add_argument(
+    "-i",
+    "--input",
+    default="./dataset/google",
+    dest="input",
+    type=str,
+    help="""Input folder - place here X_train, y_train, etc..."""
+)
+parser.add_argument(
+    "-o",
+    "--output",
+    default="results",
+    dest="output",
+    type=str,
+    help="""Output folder - results and model"""
+)
+parser.add_argument(
+    "-f",
+    "--family",
+    default="gaussian",
+    type=str,
+    metavar="Distribution Family. Use gaussian for LINEAR REGRESSION and binomial for LOGISTIC REGRESSION"
+)
+parser.add_argument(
     "-t",
-    "--type",
-    default="homoscedastic",
-    metavar="{homoscedastic, heteroscedastic} ",
-    dest="type",
-    type=str,
-    help="""Choose wether to generate a homoscesdastic or heteroscedastic epsilon term"""
-)
-linear_regression_parser.add_argument(
-    "-d",
-    "--distribution",
-    default="uniform",
-    type=str,
-    metavar="{uniform, normal} ",
-    help="Choose wether to generate normal or uniform distributed dataset"
-)
-linear_regression_parser.add_argument(
-    "-i",
     "--iteration",
-    default=None,
+    default=1,
+    dest="iteration",
     type=int,
-    metavar="N_iteration (for simulations)"
+    help="""Iteration number"""
 )
-linear_regression_parser.add_argument(
-    "-c",
-    "--convergence_threshold",
-    default=0.00001,
-    type=float,
-    metavar="Convergence Threshold of Backfitting algorithm"
-)
-linear_regression_parser.add_argument(
-    "-o",
-    "--output",
-    default="results",
-    dest="output",
-    type=str,
-    help="""Output folder"""
-)
-
-
-linear_regression_parser.set_defaults(family='gaussian')
-logistic_regression_parser = subparsers.add_parser(name='logistic', help="Logistic Regression")
-logistic_regression_parser.add_argument(
-    "-d",
-    "--distribution",
-    default="uniform",
-    type=str,
-    metavar="{uniform, normal} ",
-    help="Choose wether to generate normal or uniform distributed dataset"
-)
-logistic_regression_parser.add_argument(
-    "-i",
-    "--iteration",
-    default=None,
-    type=int,
-    metavar="N_iteration (for simulations)"
-)
-logistic_regression_parser.add_argument(
-    "-c",
-    "--convergence_threshold",
-    default=0.00001,
-    type=float,
-    metavar="Convergence Threshold of backfitting algorithm"
-)
-logistic_regression_parser.add_argument(
-    "-a",
-    "--delta_threshold",
-    default=0.01,
-    type=float,
-    metavar="Convergence Threshold of LS algorithm"
-)
-
-logistic_regression_parser.add_argument(
-    "-o",
-    "--output",
-    default="results",
-    dest="output",
-    type=str,
-    help="""Output folder"""
-)
-
-logistic_regression_parser.set_defaults(family='binomial')
 
 def partition(lst, batch_size):
     lst_len = len(lst)
@@ -286,58 +231,50 @@ if __name__ == "__main__":
   args = parser.parse_args()
   variables = vars(args)
   
-  type = variables.get("type", None)
-  distribution = variables["distribution"]
   family = variables["family"]    # gaussian / binomial
   iteration = variables["iteration"]
   
+  output_folder = os.path.normpath(os.path.abspath(os.path.join("./", variables["output"])))
 
-  output_folder = variables.pop("output", "results")
+  if not os.path.exists(output_folder):
+      os.makedirs(output_folder)
+
+  input_path = os.path.normpath(os.path.abspath(os.path.join("./", variables["input"])))
+  
+  print("Starting --- INPUT {0}, OUTPUT {1}".format(input_path, output_folder))
 
   regression = False
   if family == "gaussian":
     regression = True
 
-  conv_threshold = variables.pop("convergence_threshold", 0.01)
-  delta_threshold = variables.pop("delta_threshold", 0.00001)
-
   variables.pop("iteration")
   print(variables)
   
   if iteration is not None:
-      rel_path = "./{0}/{1}".format(output_folder, iteration)
-      path = os.path.normpath(os.path.abspath(rel_path))
-      #add iteration
-      if not os.path.exists(path):
-          os.mkdir(path)
+    path = os.path.normpath(os.path.join(output_folder, str(iteration)))
+    #add iteration
+    if not os.path.exists(path):
+        os.makedirs(path)
 
   else:
-      rel_path = "./{0}/".format(output_folder)
-      path = os.path.normpath(os.path.abspath(rel_path))
-        
-  # add exec type
-  #data_type_path = "_".join(list(variables.values())) 
-  data_type_path = "google"
-  path = path + "/" + data_type_path
-  if not os.path.exists(path):
-      os.mkdir(path)
-
+    path = os.path.normpath(output_folder)
+      
   column_names = ["f1", "f2", "f3"]
 
-  X_train = pd.read_csv("./dataset/{0}/X_train.csv".format(data_type_path), index_col=0, dtype=np.float32).reset_index(drop=True)
+  X_train = pd.read_csv("{0}/X_train.csv".format(input_path), index_col=0, dtype=np.float32).reset_index(drop=True)
   X_train.columns = X_train.columns.map(int)
   X_train = X_train.to_numpy()
   
-  fs_train = pd.read_csv("./dataset/{0}/fs_train.csv".format(data_type_path), index_col=0).reset_index(drop=True)
+  fs_train = pd.read_csv("{0}/fs_train.csv".format(input_path), index_col=0).reset_index(drop=True)
   
-  y_train = pd.read_csv("./dataset/{0}/y_train.csv".format(data_type_path), index_col=0, dtype=np.float32).reset_index(drop=True).squeeze()
+  y_train = pd.read_csv("{0}/y_train.csv".format(input_path), index_col=0, dtype=np.float32).reset_index(drop=True).squeeze()
   y_train = y_train.to_numpy()
 
-  X_test = pd.read_csv("./dataset/{0}/X_test.csv".format(data_type_path), index_col=0, dtype=np.float32).reset_index(drop=True)
+  X_test = pd.read_csv("{0}/X_test.csv".format(input_path), index_col=0, dtype=np.float32).reset_index(drop=True)
   X_test = X_test.to_numpy()
 
-  fs_test = pd.read_csv("./dataset/{0}/fs_test.csv".format(data_type_path), index_col=0).reset_index(drop=True)
-  y_test = pd.read_csv("./dataset/{0}/y_test.csv".format(data_type_path), index_col=0, dtype=np.float32).reset_index(drop=True).squeeze()
+  fs_test = pd.read_csv("{0}/fs_test.csv".format(input_path), index_col=0).reset_index(drop=True)
+  y_test = pd.read_csv("{0}/y_test.csv".format(input_path), index_col=0, dtype=np.float32).reset_index(drop=True).squeeze()
   y_test = y_test.to_numpy()
 
   tf.compat.v1.reset_default_graph()
@@ -460,8 +397,7 @@ if __name__ == "__main__":
 
   """ SAVE RESULTS"""
   pd.DataFrame(fs_pred).to_csv(path + "/fs_test_estimated.csv")
-  pd.DataFrame(fs_train).to_csv(path + "/fs_train_estimated.csv")
-  
+  pd.DataFrame(fs_train).to_csv(path + "/fs_train_estimated.csv")  
 
   pd.DataFrame(test_predictions).to_csv(path + "/y_pred.csv")
   pd.DataFrame.from_dict(variables, orient="index").transpose().to_csv(path + "/variables.csv", index=False)
