@@ -78,6 +78,7 @@ if __name__ == "__main__":
     path = os.path.normpath(os.path.abspath(os.path.join("./", input_folder)))
 
     types = os.listdir(os.path.join(path, os.listdir(path)[0]))
+    #types = ["homoscedastic_uniform_gaussian", "heteroscedastic_uniform_gaussian"]
     for type in types:
         try:
             output_path = os.path.join(path, type)
@@ -111,4 +112,3 @@ if __name__ == "__main__":
             import traceback
             traceback.print_exc()
             print("error on it type={0}".format(type))
-            print(range)

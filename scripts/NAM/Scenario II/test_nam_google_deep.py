@@ -258,7 +258,12 @@ if __name__ == "__main__":
 
   else:
     path = os.path.normpath(output_folder)
-      
+  
+  data_type_path = "google" 
+  path = os.path.normpath(os.path.join(path, data_type_path))
+  if not os.path.exists(path):
+    os.mkdir(path)
+
   column_names = ["f1", "f2", "f3"]
 
   X_train = pd.read_csv("{0}/X_train.csv".format(input_path), index_col=0, dtype=np.float32).reset_index(drop=True)

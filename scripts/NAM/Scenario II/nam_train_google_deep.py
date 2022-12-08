@@ -342,7 +342,12 @@ if __name__ == '__main__':
         os.makedirs(path)
   else:
     path = os.path.normpath(output_folder)
-      
+  
+  data_type_path = "google" 
+  path = os.path.normpath(os.path.join(path, data_type_path))
+  if not os.path.exists(path):
+    os.mkdir(path)
+
   logdir = path + "/model"
   print("Saving results on " + path)
 

@@ -111,6 +111,16 @@
             ]
         },
         {
+            "name": "Plots Coimbra",
+            "type": "python",
+            "request": "launch",
+            "program": "plots_ucoimbra.py",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "results"
+            ]
+        },
+        {
             "name": "Stats",
             "type": "python",
             "request": "launch",

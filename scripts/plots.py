@@ -41,7 +41,6 @@ if __name__ == "__main__":
         is_nam = False
 
     types = os.listdir(os.path.join(path, os.listdir(path)[0]))
-    
     for type in types:
         try:
             output_path = os.path.join(path, type)
@@ -109,11 +108,10 @@ if __name__ == "__main__":
             fancybox=True, shadow=True)
             """
             plt.tight_layout()
-            plt.savefig(os.path.join(output_path, type) + ".png", dpi=100, bbox_inches = "tight")
+            plt.savefig(os.path.join(output_path, type) + ".png", dpi=500, bbox_inches = "tight")
             
         except Exception as e:
             print(e) 
             import traceback
             traceback.print_exc()
             print("error on it type={0}".format(type))
-            print(range)
