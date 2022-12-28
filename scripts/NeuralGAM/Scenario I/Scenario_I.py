@@ -138,6 +138,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     variables = vars(args)
     
+    print(variables)
     type = variables.get("type", None)
     distribution = variables["distribution"]
     family = variables["family"]    # gaussian / binomial
@@ -146,9 +147,8 @@ if __name__ == "__main__":
     
     conv_threshold = variables.pop("convergence_threshold", 0.01)
     delta_threshold = variables.pop("delta_threshold", 0.00001)
-    units = variables.pop("units", 1024)
+    units = [int(item) for item in str(variables.pop("units")).split(',')]
     variables.pop("iteration")
-    print(variables)
     
     if iteration is not None:
         rel_path = "./{0}/{1}".format(output_folder, iteration)
@@ -185,11 +185,12 @@ if __name__ == "__main__":
         
     
     if family == "binomial":
+        
         y_train_binomial = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
         y_test_binomial =  np.random.binomial(n=1, p=y_test, size=y_test.shape[0])
         ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family, num_units=units)
         tstart = datetime.now()
-        muhat, gs_train = ngam.fit(X_train = X_train, 
+        muhat, gs_train, eta = ngam.fit(X_train = X_train, 
                                 y_train = y_train_binomial, 
                                 max_iter_ls = 10, 
                                 bf_threshold=conv_threshold,
@@ -200,7 +201,7 @@ if __name__ == "__main__":
     else:
         ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family, num_units=units)
         tstart = datetime.now()
-        muhat, gs_train = ngam.fit(X_train = X_train, 
+        muhat, gs_train, eta = ngam.fit(X_train = X_train, 
                                 y_train = y_train, 
                                 max_iter_ls = 10, 
                                 bf_threshold=conv_threshold,
@@ -211,45 +212,29 @@ if __name__ == "__main__":
     training_seconds = (tend - tstart).seconds
     variables["eta0"] = ngam.eta0
     variables["training_seconds"] = training_seconds
+    variables["units"] = units
+    variables["bf-threshold"] = conv_threshold
+    variables["ls-threshold"] = delta_threshold
 
-    y_pred = ngam.predict(X_test)
+    y_pred, eta_pred = ngam.predict(X_test)
     fs_pred = ngam.get_partial_dependencies(X_test)
 
-    err = mean_squared_error(y_train, ngam.y)
-    pred_err = mean_squared_error(y_test, y_pred)
+    if family == "binomial":
+        eta_train =  np.log(y_train/(1-y_train))
+        eta_test = np.log(y_test/(1-y_test))
+        err = mean_squared_error(eta_train, ngam.eta)
+        pred_err = mean_squared_error(eta_test, eta_pred)
+
+    else:
+        err = mean_squared_error(y_train, ngam.eta)
+        pred_err = mean_squared_error(y_test, eta_pred)
+    
     variables["err"] = err
     variables["err_test"] = pred_err
     variables["err_rmse"] = np.sqrt(err)
     variables["err_test_rmse"] = np.sqrt(pred_err)
     print("Done")
     print(variables)
-    """ SAVE DATASET """
-    if not os.path.exists("./dataset/{0}/X_train.csv".format(data_type_path)):
-        pd.DataFrame(X_train).to_csv("./dataset/{0}/X_train.csv".format(data_type_path))
-        pd.DataFrame(y_train).to_csv("./dataset/{0}/y_train.csv".format(data_type_path))
-        pd.DataFrame(fs_train).to_csv("./dataset/{0}/fs_train.csv".format(data_type_path))
-        pd.DataFrame(X_test).to_csv("./dataset/{0}/X_test.csv".format(data_type_path))
-        pd.DataFrame(y_test).to_csv("./dataset/{0}/y_test.csv".format(data_type_path))
-        pd.DataFrame(fs_test).to_csv("./dataset/{0}/fs_test.csv".format(data_type_path))
-
-    """
-    x_list = [X_train, X_train]
-    fs_train = fs_train - fs_train.mean()
-    fs_list = [fs_train, gs_train]
-    legends = ["real", "estimated_training"]
-    vars = variables
-    vars["err"] = round(err, 4)
-    plot_multiple_partial_dependencies(x_list=x_list, f_list=fs_list, legends=legends, title=vars, output_path=path + "/fs_training.png")
-    x_list = [X_test, X_test]
-    fs_test = fs_test - fs_test.mean()
-    fs_list = [fs_test, fs_pred]
-    
-    legends = ["real_test", "estimated_test"]
-    vars = variables
-    vars["err"] = round(pred_err, 4)
-    
-    plot_multiple_partial_dependencies(x_list=[X_test, X_test], f_list=[fs_test, fs_pred], legends=legends, title=vars, output_path=path + "/fs_test.png")
-    """
     
     if family == "binomial":
         from sklearn.metrics import roc_auc_score, precision_recall_fscore_support, classification_report, confusion_matrix
@@ -272,6 +257,7 @@ if __name__ == "__main__":
         variables["fp"] = fp
         variables["fn"] = fn
         variables["tp"] = tp
+       
         pd.DataFrame(y_train_binomial).to_csv(path + "/y_train_binomial.csv")
         pd.DataFrame(y_test_binomial).to_csv(path + "/y_test_binomial.csv")
         pd.DataFrame(y_bin).to_csv(path + "/y_pred_binomial.csv") 
@@ -280,6 +266,6 @@ if __name__ == "__main__":
     """ SAVE RESULTS"""
     pd.DataFrame(fs_pred).to_csv(path + "/fs_test_estimated.csv")
     pd.DataFrame(y_pred).to_csv(path + "/y_pred.csv")
-   
+    
     pd.DataFrame(gs_train).to_csv(path + "/fs_train_estimated.csv")  
     pd.DataFrame.from_dict(variables, orient="index").transpose().to_csv(path + "/variables.csv", index=False)

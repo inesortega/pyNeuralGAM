@@ -4,9 +4,10 @@ import pandas as pd
 import sklearn
 from sklearn.metrics import mean_squared_error
 import tensorflow as tf
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, LeakyReLU
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.regularizers import L2
 from tensorflow.python.training.tracking.data_structures import ListWrapper
 
 TfInput = Union[np.ndarray, tf.Tensor]
@@ -26,6 +27,7 @@ class NeuralGAM(tf.keras.Model):
                 num_inputs,
                 family,
                 num_units = 1024,
+                learning_rate = 0.001,
                 **kwargs):
         """Initializes NeuralGAM hyperparameters.
 
@@ -43,16 +45,16 @@ class NeuralGAM(tf.keras.Model):
         self.feature_networks = [None] * self._num_inputs
         self.eta0 = 0
         self.y = None
+        self.eta = None
+        self.lr = learning_rate
         self.build()
 
-    
     def build_feature_NN(self, layer_name):
         """ Generates a model to fit a specific feature of the dataset"""
         model = Sequential(name=layer_name)
 
         # add input layer
         model.add(Dense(1))
-
         # add hidden layer(s). If self._num_units is a list, add one layer per size in the list
         if type(self._num_units) is ListWrapper:
             for i in range(len(self._num_units)):
@@ -62,9 +64,8 @@ class NeuralGAM(tf.keras.Model):
             model.add(Dense(self._num_units, kernel_initializer='glorot_normal', activation='relu'))
         
         model.add(Dense(1))
-        model.compile(loss= "mean_squared_error", optimizer=Adam(learning_rate=0.001))
+        model.compile(loss= "mean_squared_error", optimizer=Adam(learning_rate=self.lr))
         return model
-
 
     def build(self):
         """Builds a FeatureNNs for each feature """
@@ -87,7 +88,7 @@ class NeuralGAM(tf.keras.Model):
             y: learnt estimator
             g: learned functions for each variable
         """
-        print("Fitting GAM - max_it = {0} max_iter_backfitting = {1} ; ls_threshold = {2}, bf_threshold={3}".format(max_iter_ls, max_iter_backfitting, ls_threshold, bf_threshold))
+        print("\n\nFitting GAM \n -- max_it = {0}\n -- max_iter_backfitting = {1}\n -- ls_threshold = {2}\n -- bf_threshold={3}\n -- learning_rate={4}\n\n".format(max_iter_ls, max_iter_backfitting, ls_threshold, bf_threshold, self.lr))
         
         #Initialization
         converged = False
@@ -176,8 +177,9 @@ class NeuralGAM(tf.keras.Model):
         
         # Reconstruct learnt y
         self.y = self.apply_link(eta)
-        
-        return self.y, g
+        self.eta = eta
+
+        return self.y, g, eta
     
     def deviance(self, fit, y, W):
         """ Obtains the deviance of the model"""
@@ -239,10 +241,10 @@ class NeuralGAM(tf.keras.Model):
             
     def predict(self, X: pd.DataFrame):
         """Computes Neural GAM output by computing a linear combination of the outputs of individual feature networks."""
-        output = self.get_partial_dependencies(X)
-        y = self.apply_link(output.sum(axis=1) + self.eta0)
-        return y
-    
+        eta = self.get_partial_dependencies(X)
+        eta = eta.sum(axis=1) + self.eta0
+        y = self.apply_link(eta)
+        return y, eta
     
     def apply_link(self, muhat):
         """ Applies the link function """ 
@@ -313,13 +315,15 @@ def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, out
         data['x'] = x[x.columns[i]]
         data['f(x)']= fs[fs.columns[i]]
         
-        # calculate confidence interval at 95%
+        # calculate confidence interval at 95%  
         ci = 1.96 * np.std(data['f(x)'])/np.sqrt(len(data['x']))
         data['y+ci'] = data['f(x)'] + ci
         data['y-ci'] = data['f(x)'] - ci
-        sns.lineplot(data = data, x='x', y='f(x)', color='g', ax=axs[i])
-        sns.lineplot(data = data, x='x', y='y-ci', color='r', linestyle='--', ax=axs[i])
-        sns.lineplot(data = data, x='x', y='y+ci', color='r', linestyle='--', ax=axs[i])
+        sns.lineplot(data = data, x='x', y='f(x)', color='royalblue', ax=axs[i])
+        sns.lineplot(data = data, x='x', y='y-ci', color='coral', linestyle='--', ax=axs[i])
+        axs[i].lines[-1].set_linestyle('--')
+        sns.lineplot(data = data, x='x', y='y+ci', color='coral', linestyle='--', ax=axs[i])
+        axs[i].lines[-1].set_linestyle('--')
         axs[i].grid()
     
     import matplotlib.patches as mpatches

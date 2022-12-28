@@ -33,6 +33,16 @@ parser.add_argument(
     type=str,
     metavar="Distribution Family. Use gaussian for LINEAR REGRESSION and binomial for LOGISTIC REGRESSION"
 )
+
+parser.add_argument(
+    "-l",
+    "--lr",
+    dest="lr",
+    default=0.001,
+    type=float,
+    metavar="Learning Rate. Defaults to 0.001"
+)
+
 parser.add_argument(
     "-c",
     "--bf_threshold",
@@ -75,6 +85,7 @@ if __name__ == "__main__":
     import pandas as pd
 
     units = [int(item) for item in variables["units"].split(',')]
+    lr = variables["lr"]
 
     output_path = os.path.normpath(os.path.abspath(os.path.join("./", variables["output"])))
 
@@ -96,8 +107,8 @@ if __name__ == "__main__":
         exit(-1)
 
     print("Startint NeuralGAM training  with {0} rows...".format(X_train.shape[0]))
-    ngam = NeuralGAM(num_inputs = len(X_train.columns), family=variables["family"], num_units=units)
-    muhat, fs_train = ngam.fit(X_train = X_train, 
+    ngam = NeuralGAM(num_inputs = len(X_train.columns), family=variables["family"], num_units=units, learning_rate=lr)
+    muhat, fs_train, eta = ngam.fit(X_train = X_train, 
                                 y_train = y_train, 
                                 max_iter_ls = variables["ls"], 
                                 bf_threshold=variables["bf_threshold"],
@@ -129,4 +140,5 @@ if __name__ == "__main__":
     pd.DataFrame(fs_pred).to_csv(output_path + "/fs_test_estimated.csv")
     pd.DataFrame(y_pred).to_csv(output_path + "/y_pred.csv")
     pd.DataFrame(fs_train).to_csv(output_path + "/fs_train_estimated.csv")  
+    pd.DataFrame(eta).to_csv(output_path + "/eta.csv")  
     pd.DataFrame.from_dict(results, orient="index").transpose().to_csv(output_path + "/results.csv", index=False)

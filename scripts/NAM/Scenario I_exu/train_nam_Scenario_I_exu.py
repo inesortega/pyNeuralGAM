@@ -26,12 +26,12 @@ import data_utils
 import graph_builder
 import argparse
 
-training_epochs = 1000
-learning_rate = 0.00674
+training_epochs = 10
+learning_rate = 0.0053
 output_regularization =  0.0
-l2_regularization = 1e-6
+l2_regularization = 0.0
 batch_size = 1024
-decay_rate = 0.995
+decay_rate = 0.999
 dropout = 0.0
 feature_dropout = 0.0
 num_basis_functions = 1024
@@ -45,7 +45,7 @@ fold_num = 1
 activation = "exu"
 debug = False
 use_dnn = False
-early_stopping_epochs = 100
+early_stopping_epochs = 3
 _N_FOLDS = 1
 gfile = tf1.io.gfile
 DatasetType = data_utils.DatasetType

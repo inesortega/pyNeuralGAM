@@ -40,7 +40,7 @@ if __name__ == "__main__":
             if not os.path.exists(output_path):
                 os.mkdir(output_path)
 
-            X = pd.read_csv(os.path.join("./dataset", type, "X_grid.csv"), index_col=0).reset_index(drop=True)
+            X = pd.read_csv(os.path.join(path, type, "X_grid.csv"), index_col=0).reset_index(drop=True)
             f = pd.read_csv(os.path.join(path, type, "fs_grid.csv"), index_col=0).reset_index(drop=True)
             
             print("Generating " + type + " plots")
@@ -58,7 +58,7 @@ if __name__ == "__main__":
                 sns.lineplot(data = data, x='x', y='y', color='royalblue', linewidth=5)
                 
                 axs.set_xlabel(var)
-                axs.set_ylabel(f"$f({var})$")
+                axs.set_ylabel(f"$\hat f(x)$")
                 plt.tight_layout()
                 plt.savefig(os.path.join(output_path, type + "_" + var) + ".png", dpi=500, bbox_inches = "tight")
                 plt.clf()

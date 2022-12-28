@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
         return pd.DataFrame(UNIQUE_FEATURES_ORIGINAL)
 
-    def compute_mean_estimations(X):
+    def compute_mean_estimations(X, X_name):
         f_list = list()
         mean_estimations = pd.DataFrame()
         q975 = pd.DataFrame()
@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
         for dir in dirs:
             try:
-                fs_estimated_i = pd.read_csv(os.path.join(path, dir, type, "fs_train_estimated.csv"), index_col=0).reset_index(drop=True)
+                fs_estimated_i = pd.read_csv(os.path.join(path, dir, type, X_name), index_col=0).reset_index(drop=True)
             except:
                 continue
             for i, f in enumerate(fs_estimated_i.columns):
@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
         for i, f in enumerate(f_list):
             if is_nam:
-                f_list[i] = f_list[i] - f_list[i].mean()
+                f_list[i] = f_list[i] - f_list[i].mean()    # mean center for nam
             mean_estimations[str(i)] = f_list[i].mean(axis=1)
             q975[str(i)] = f_list[i].quantile(0.975, axis=1)
             q025[str(i)] = f_list[i].quantile(0.025, axis=1)
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     path = os.path.normpath(os.path.abspath(os.path.join("./", input_folder)))
 
     types = os.listdir(os.path.join(path, os.listdir(path)[0]))
-    #types = ["homoscedastic_uniform_gaussian", "heteroscedastic_uniform_gaussian"]
+    #types = ["uniform_binoamial"]
     for type in types:
         try:
             output_path = os.path.join(path, type)
@@ -91,21 +91,13 @@ if __name__ == "__main__":
             # center theoretical fs for plotting
             fs_train = fs_train - fs_train.mean()
 
-            print("Generating " + type + " plots")
+            print("Generating " + type + " data for plotting...")
             
-            mean_estimations, q975, q025 = compute_mean_estimations(X_train)
-
-            """if is_nam:
-                X_train_prec = preprocess_X_google(X_train)
-                X_train_prec = X_train_prec.reset_index(drop=True)
-                X_train_prec.to_csv(("./dataset/{0}/X_train_postprocess.csv".format(type)))
-            """
+            mean_estimations, q975, q025 = compute_mean_estimations(X_train, "fs_train_estimated.csv")
             
             mean_estimations.to_csv(os.path.join(output_path, "mean_estimation") + ".csv")
             q975.to_csv(os.path.join(output_path, "q975") + ".csv")
             q025.to_csv(os.path.join(output_path, "q025") + ".csv")
-            X_train.to_csv(os.path.join(output_path, "X_train") + ".csv")
-            fs_train.to_csv(os.path.join(output_path, "fs_train") + ".csv")
 
         except Exception as e:
             print(e) 

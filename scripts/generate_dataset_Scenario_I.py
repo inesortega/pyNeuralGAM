@@ -73,11 +73,13 @@ if __name__ == "__main__":
     import pandas as pd
     import numpy as np
 
+    np.random.seed(1231241351)
+
     type = variables.get("type", None)
     distribution = variables["distribution"]
     family = variables["family"]    # gaussian / binomial
-    X, y, fs = generate_data(nrows=25000, type=type, distribution=distribution, family=family, output_folder=output_path)
-    X_train, X_test, y_train, y_test, fs_train, fs_test = split(X, y, fs)
+    X, y, fs = generate_data(nrows=15000, type=type, distribution=distribution, family=family, output_folder=output_path)
+    X_train, X_test, y_train, y_test, fs_train, fs_test = split(X, y, fs, test_size=0.2)
     
     pd.DataFrame(X_train).to_csv(output_path + "/X_train.csv")
     pd.DataFrame(y_train).to_csv(output_path + "/y_train.csv")

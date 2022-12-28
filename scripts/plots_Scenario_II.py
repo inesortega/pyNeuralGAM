@@ -48,11 +48,13 @@ if __name__ == "__main__":
 
             print("Generating " + type + " plots")
             
-            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(8.27*5,3.896*5))  # A4 width, A4/3 height (proportional)
-
+            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(8.27*5,3.896*5))
+            
             # Set tick font size
             for ax in axs:
-                for label in (ax.get_xticklabels() + ax.get_yticklabels()):
+                for label in ax.get_xticklabels():
+                    label.set_fontsize(19)
+                for label in ax.get_yticklabels():
                     label.set_fontsize(30)
 
             mean_estimations = pd.read_csv(os.path.join(path, type, "mean_estimation.csv"), index_col=0).reset_index(drop=True)

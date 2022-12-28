@@ -5,13 +5,24 @@ import itertools
 import os
 from sklearn.metrics import roc_curve
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
-import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import numpy as np
 from sklearn.model_selection import train_test_split
 import scipy
 from scipy.stats import truncnorm
+
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+plt.style.use('seaborn')
+
+params = {"axes.linewidth": 2,
+        "font.family": "serif"}
+
+matplotlib.rcParams['agg.path.chunksize'] = 10000
+plt.rcParams.update(params)
+
 
 np.random.seed(343142)
 
@@ -79,8 +90,10 @@ def plot_y_histogram(dataframe_list: list, legends: list, title:str, output_path
 
  
 def experiments_plot_partial_dependencies(x_list, f_list, legends, title, output_path=None):    
-    fig, axs = plt.subplots(nrows=1, ncols=len(f_list[0].columns))
-    fig.suptitle(title, fontsize=10)
+    
+    fig, axs = plt.subplots(nrows=1, ncols=len(f_list[0].columns), figsize=(25,20))
+    fig.suptitle(title)
+
     for i, term in enumerate(f_list[0].columns):
         data = pd.DataFrame()
         for j in range(len(x_list)):
@@ -95,14 +108,6 @@ def experiments_plot_partial_dependencies(x_list, f_list, legends, title, output
             data['y']= f_list[j][f_list[j].columns[i]]
             sns.lineplot(data = data, x='x', y='y', ax=axs[i], color=color, linestyle=style)
             
-            # calculate confidence interval at 95%
-            #ci = 1.96 * np.std(data['y'])/np.sqrt(len(data['x']))
-            
-            #data['y+ci'] = data['y'] + ci
-            #data['y-ci'] = data['y'] - ci
-            #sns.lineplot(data = data, x='x', y='y-ci', color='grey', linestyle='--', alpha = 0.5, ax=axs[i])
-            #sns.lineplot(data = data, x='x', y='y+ci', color='grey', linestyle='--', alpha = 0.5, ax=axs[i])
-
         axs[i].grid()
     
     axs[0].set_title("f(x) = 2x\N{SUBSCRIPT ONE}")
@@ -115,8 +120,8 @@ def experiments_plot_partial_dependencies(x_list, f_list, legends, title, output
     learned_patch = mpatches.Patch(color='green', label='Learned f(x) from Neural GAM')
     #quantiles = mpatches.Patch(color='grey', label='Confidence Intervals at 95%')
     
-    fig.legend(handles=[theoretical_patch, learned_patch], loc='lower center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5)
     plt.tight_layout()
+    fig.legend(handles=[theoretical_patch, learned_patch], loc='lower center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5)
     
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
@@ -157,12 +162,15 @@ def youden(y_true, y_score):
     idx = np.argmax(tpr - fpr)
     return thresholds[idx]
     
-def split(X, y, fs):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=True)
+def split(X, y, fs, test_size=0.2):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, shuffle=True)
     
     fs_train = fs.iloc[X_train.index].reset_index(drop=True)
     fs_test = fs.iloc[X_test.index].reset_index(drop=True)
-    
+
+    print(f"Shape train {y_train.shape}")
+    print(f"Shape test {y_test.shape}")
+
     return X_train.reset_index(drop=True), X_test.reset_index(drop=True), y_train.reset_index(drop=True).squeeze(), y_test.reset_index(drop=True).squeeze(), fs_train, fs_test
 
 
@@ -182,9 +190,10 @@ def save(X_train,X_test,y_train,y_test, output_folder):
 """ DATA GENERATION """
 
 def generate_err(nrows:int, data_type:str, eta0:pd.DataFrame):
-    err = np.random.normal(loc=0, scale=0.2, size=nrows)
+    err = np.random.normal(loc=0, scale=0.5, size=nrows)
     if data_type == "heteroscedastic":
-        sigma = np.sqrt(0.5 + 0.05 * np.abs(eta0))
+        #sigma = np.sqrt(0.5 + 0.05 * np.abs(eta0))
+        sigma = 0.5 + np.abs(0.25*eta0)
         err = err * sigma
 
     print("\n Intercept: {0} data".format(data_type))
