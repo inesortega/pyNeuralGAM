@@ -301,15 +301,17 @@ def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, out
     plt.style.use('seaborn')
 
     params = {"axes.linewidth": 2,
-            "font.size": 30, 
             "font.family": "serif",
-            "axes.labelsize": 30}
+            'font.size': 20}
 
+    axis_font = {'fontname':'serif', 'size':'14'}
     matplotlib.rcParams['agg.path.chunksize'] = 10000
     plt.rcParams.update(params)
+    plt.style.use('seaborn-darkgrid')
 
     fig, axs = plt.subplots(nrows=1, ncols=len(fs.columns), figsize=(25,20))
-    fig.suptitle(title, fontsize=10)
+    fig.suptitle(title)
+    
     for i, term in enumerate(fs.columns):
         data = pd.DataFrame()
         data['x'] = x[x.columns[i]]
@@ -317,8 +319,15 @@ def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, out
         
         sns.lineplot(data = data, x='x', y='f(x)', color='royalblue', ax=axs[i])
         axs[i].grid()
-        axs[i].set_xlabel(f'X_{i+1}')
-        axs[i].set_ylabel(f'f(x)')
+        axs[i].set_xlabel(f'$X_{i+1}$', **axis_font)
+        axs[i].set_ylabel(f'$f(x_{i+1})$', **axis_font)
+
+        # Set the tick labels font
+        for label in (axs[i].get_xticklabels() + axs[i].get_yticklabels()):
+            label.set_fontname('serif')
+            label.set_fontsize(20)
+    
+    plt.tight_layout()
     
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")

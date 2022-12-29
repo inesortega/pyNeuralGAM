@@ -185,7 +185,6 @@ if __name__ == "__main__":
         
     
     if family == "binomial":
-        
         y_train_binomial = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
         y_test_binomial =  np.random.binomial(n=1, p=y_test, size=y_test.shape[0])
         ngam = NeuralGAM(num_inputs = len(X_train.columns), family=family, num_units=units)

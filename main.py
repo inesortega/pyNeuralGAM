@@ -1,5 +1,6 @@
 import argparse
 import os
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -77,7 +78,8 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     variables = vars(args)
-    print(variables)
+
+    print(f'\n\n{variables}\n\n')
     
     import pandas as pd
     from sklearn.metrics import mean_squared_error
@@ -93,7 +95,6 @@ if __name__ == "__main__":
         os.makedirs(output_path)
 
     input_path = os.path.normpath(os.path.abspath(os.path.join("./", variables["input"])))
-    print("Starting --- INPUT {0}, OUTPUT {1}".format(input_path, output_path))
 
     """ Load dataset -- if you want to preprocess or select some features, do it here"""
     try:
@@ -108,6 +109,12 @@ if __name__ == "__main__":
 
     print("Startint NeuralGAM training  with {0} rows...".format(X_train.shape[0]))
     ngam = NeuralGAM(num_inputs = len(X_train.columns), family=variables["family"], num_units=units, learning_rate=lr)
+
+    if variables["family"] != "gaussian":
+        """ Ensure y_test / y_train are proper labels..."""
+        if not np.logical_or(y_test == 0, y_test == 1).all() and not np.logical_or(y_train == 0, y_train == 1).all():
+            raise Exception("To use Logistic Regression you must provide train/test labels in the discrete set {0,1}")
+
     muhat, fs_train, eta = ngam.fit(X_train = X_train, 
                                 y_train = y_train, 
                                 max_iter_ls = variables["ls"], 
@@ -123,22 +130,43 @@ if __name__ == "__main__":
 
     print("Starting Predict...")
     y_pred, eta_pred = ngam.predict(X_test)
-    pred_err = mean_squared_error(y_test, y_pred)
-    results["MSE_test"] = str(pred_err)
-    print("Predict done... MSE_test = {0}".format(str(pred_err)))
 
+    if variables["family"] == "gaussian":
+        pred_err = mean_squared_error(y_test, eta_pred)
+        results["MSE_test"] = str(pred_err)
+        print("Predict done... MSE_test = {0}".format(str(pred_err)))
+    else:
+        """ Binomial scenario. Compute AUC/ROC"""
+        from sklearn.metrics import roc_auc_score, precision_recall_fscore_support, classification_report, confusion_matrix
+        from src.utils.utils import youden
+        
+        threshold = youden(y_test, y_pred)
+        y_bin = np.where(y_pred >= threshold, 1, 0)
+        pr, rec, f1, support = precision_recall_fscore_support(y_test, y_bin)
+        auc = roc_auc_score(y_test, y_pred)
+        print("Achieved AUC {0}".format(auc))
+
+        variables["auc_roc"] = auc 
+        variables["threshold"] = threshold
+        metrics = classification_report(y_test, y_bin, output_dict=True)
+        matrix = confusion_matrix(y_test, y_bin, normalize="true")
+        tn, fp, fn, tp = matrix.ravel()
+        variables["tp"] = tp
+        variables["fp"] = fp
+        variables["fn"] = fn
+        variables["tp"] = tp
+        pd.DataFrame(y_bin).to_csv(output_path + "/y_pred_binomial.csv")
+        
     print("Obtaining Partial Dependence Plots...")
     fs_pred = ngam.get_partial_dependencies(X_test)
         
-    # If using synthetic dataset, you must need to center theoretical functions before plotting: fs_test = fs_test - fs_test.mean()
-    
-    # you can plot theoretical + learned functions by passing multiple dataframes in x_list, f_list
     plot_partial_dependencies(x=X_train, fs=fs_train, title="Training Partial Dependence Plot", output_path=output_path + "/fs_train.png")
-    plot_partial_dependencies(x=X_test, fs=fs_pred, title="Test Partial Dependence Plot", output_path=output_path + "/fs_test.png")
-
+    
     """ SAVE RESULTS"""
     pd.DataFrame(fs_pred).to_csv(output_path + "/fs_test_estimated.csv")
     pd.DataFrame(y_pred).to_csv(output_path + "/y_pred.csv")
     pd.DataFrame(fs_train).to_csv(output_path + "/fs_train_estimated.csv")  
     pd.DataFrame(eta).to_csv(output_path + "/eta.csv")  
     pd.DataFrame.from_dict(results, orient="index").transpose().to_csv(output_path + "/results.csv", index=False)
+
+    print(f"\n\n{variables}\n\n")

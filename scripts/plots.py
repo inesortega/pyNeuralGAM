@@ -83,14 +83,8 @@ if __name__ == "__main__":
                 sns.lineplot(data = data, x='x', y='q025', color='coral', alpha=0.5, ax=axs[i])
                 axs[i].lines[-1].set_linestyle('--')
                 
-            axs[0].set_xlabel(f"$X_1$", fontsize=30)
-            axs[0].set_ylabel(f"$f(x_1)$", fontsize=30)
-            
-            axs[1].set_xlabel(f"$X_2$", fontsize=30)
-            axs[1].set_ylabel(f"$f(x_2)$", fontsize=30)
-
-            axs[2].set_xlabel(f"$X_3$", fontsize=30)
-            axs[2].set_ylabel(f"$f(x_3)$", fontsize=30)
+                axs[i].set_xlabel(f"$X_{i+1}$", fontsize=30)
+                axs[i].set_ylabel(f"$f(x_{i+1})$", fontsize=30)
 
             plt.tight_layout()
             plt.savefig(os.path.join(output_path, type) + ".png", dpi=550, bbox_inches = "tight")
