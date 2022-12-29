@@ -121,25 +121,28 @@ if __name__ == "__main__":
                                 bf_threshold=variables["bf_threshold"],
                                 ls_threshold=variables["ls_threshold"],
                                 max_iter_backfitting=variables["bf"])
-    err = mean_squared_error(y_train, ngam.y)
-    print("Trainign done... MSE_train = {0}".format(str(err)))
-    results = dict()
-
-    results["muhat"] = str(muhat)
-    results["MSE_train"] = str(err)
-
     print("Starting Predict...")
     y_pred, eta_pred = ngam.predict(X_test)
 
     if variables["family"] == "gaussian":
         pred_err = mean_squared_error(y_test, eta_pred)
-        results["MSE_test"] = str(pred_err)
+        variables["MSE_test"] = str(pred_err)
         print("Predict done... MSE_test = {0}".format(str(pred_err)))
     else:
         """ Binomial scenario. Compute AUC/ROC"""
         from sklearn.metrics import roc_auc_score, precision_recall_fscore_support, classification_report, confusion_matrix
         from src.utils.utils import youden
         
+        try:
+            """ try to find probabilities on dataset folder..."""
+            y_test_prob = pd.read_csv(os.path.join(input_path, "y_test_prob.csv"), index_col=0).reset_index(drop=True).squeeze()
+            """ apply link function to probabilities to get eta"""
+            eta_test = np.log(y_test_prob/(1-y_test_prob))
+            pred_err = mean_squared_error(eta_test, eta_pred)
+            variables["MSE_test"] = str(pred_err)
+        except:
+            pass
+
         threshold = youden(y_test, y_pred)
         y_bin = np.where(y_pred >= threshold, 1, 0)
         pr, rec, f1, support = precision_recall_fscore_support(y_test, y_bin)
@@ -154,7 +157,7 @@ if __name__ == "__main__":
         variables["tp"] = tp
         variables["fp"] = fp
         variables["fn"] = fn
-        variables["tp"] = tp
+        variables["tn"] = tn
         pd.DataFrame(y_bin).to_csv(output_path + "/y_pred_binomial.csv")
         
     print("Obtaining Partial Dependence Plots...")
@@ -167,6 +170,6 @@ if __name__ == "__main__":
     pd.DataFrame(y_pred).to_csv(output_path + "/y_pred.csv")
     pd.DataFrame(fs_train).to_csv(output_path + "/fs_train_estimated.csv")  
     pd.DataFrame(eta).to_csv(output_path + "/eta.csv")  
-    pd.DataFrame.from_dict(results, orient="index").transpose().to_csv(output_path + "/results.csv", index=False)
+    pd.DataFrame.from_dict(variables, orient="index").transpose().to_csv(output_path + "/results.csv", index=False)
 
     print(f"\n\n{variables}\n\n")

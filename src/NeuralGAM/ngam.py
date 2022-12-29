@@ -136,10 +136,6 @@ class NeuralGAM(tf.keras.Model):
                     eta = eta - g[index[k]]
                     residuals = Z - eta
 
-                    if self._family == "binomial":
-                        self.feature_networks[k].compile(loss= "mean_squared_error", 
-                                                        optimizer="adam",
-                                                        loss_weights= pd.Series(W))
                     self.feature_networks[k].fit(X_train[X_train.columns[k]], 
                                                  residuals, 
                                                  epochs=1, 
@@ -249,8 +245,6 @@ class NeuralGAM(tf.keras.Model):
     def apply_link(self, muhat):
         """ Applies the link function """ 
         if self._family == "binomial":
-            muhat = np.where(muhat > 10, 10, muhat)
-            muhat = np.where(muhat < -10, -10, muhat)
             return np.exp(muhat) / (1 + np.exp(muhat))
         elif self._family == "gaussian":   # identity / gaussian
             return muhat
@@ -262,8 +256,6 @@ class NeuralGAM(tf.keras.Model):
         """ Computes the inverse of the link function """ 
         if self._family == "binomial":
             d = 1 - muhat 
-            d = np.where(muhat <= 0.001, 0.001, muhat)
-            d = np.where(muhat >= 0.999, 0.999, muhat)
             return np.log(muhat/d) 
         elif self._family == "gaussian":   # identity / gaussian
             return muhat
