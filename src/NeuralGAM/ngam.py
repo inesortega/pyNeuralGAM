@@ -315,23 +315,10 @@ def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, out
         data['x'] = x[x.columns[i]]
         data['f(x)']= fs[fs.columns[i]]
         
-        # calculate confidence interval at 95%  
-        ci = 1.96 * np.std(data['f(x)'])/np.sqrt(len(data['x']))
-        data['y+ci'] = data['f(x)'] + ci
-        data['y-ci'] = data['f(x)'] - ci
         sns.lineplot(data = data, x='x', y='f(x)', color='royalblue', ax=axs[i])
-        sns.lineplot(data = data, x='x', y='y-ci', color='coral', linestyle='--', ax=axs[i])
-        axs[i].lines[-1].set_linestyle('--')
-        sns.lineplot(data = data, x='x', y='y+ci', color='coral', linestyle='--', ax=axs[i])
-        axs[i].lines[-1].set_linestyle('--')
         axs[i].grid()
-    
-    import matplotlib.patches as mpatches
-    CI_PATCH = mpatches.Patch(color='red', label='Confidence Intervals at 95%')
-    FX_PATCH = mpatches.Patch(color='green', label='Learned f(x) from Neural GAM')
-    
-    fig.legend(handles=[CI_PATCH, FX_PATCH], loc='lower center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5)
-    plt.tight_layout()
+        axs[i].set_xlabel(f'X_{i+1}')
+        axs[i].set_ylabel(f'f(x)')
     
     if output_path:
         plt.savefig(output_path, dpi = 300, bbox_inches = "tight")

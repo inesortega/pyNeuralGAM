@@ -122,7 +122,7 @@ if __name__ == "__main__":
     results["MSE_train"] = str(err)
 
     print("Starting Predict...")
-    y_pred = ngam.predict(X_test)
+    y_pred, eta_pred = ngam.predict(X_test)
     pred_err = mean_squared_error(y_test, y_pred)
     results["MSE_test"] = str(pred_err)
     print("Predict done... MSE_test = {0}".format(str(pred_err)))
