@@ -47,7 +47,7 @@ if __name__ == "__main__":
     path = os.path.normpath(os.path.abspath(os.path.join("./", output_folder, data_type_path)))
     
     if not os.path.exists(path):
-        os.mkdir(path)
+        os.makedirs(path)
 
     X_train = pd.read_csv("./dataset/{0}/X_train.csv".format(data_type_path), index_col=0).reset_index(drop=True)
     y_train = pd.read_csv("./dataset/{0}/y_train.csv".format(data_type_path), index_col=0).reset_index(drop=True).squeeze()
@@ -55,11 +55,7 @@ if __name__ == "__main__":
     X_test = pd.read_csv("./dataset/{0}/X_test.csv".format(data_type_path), index_col=0).reset_index(drop=True)
     y_test = pd.read_csv("./dataset/{0}/y_test.csv".format(data_type_path), index_col=0).reset_index(drop=True).squeeze()
 
-    #feature_list = ["spkts","dpkts","pkts","sbytes","dbytes","bytes","dur","sintpkt","dintpkt"]
     feature_list = ["pkts", "bytes","dur","sintpkt", "dintpkt"]
-    
-    #X_train["intpkt"] = X_train[['sintpkt', 'dintpkt']].sum(axis=1)
-    #X_test["intpkt"] = X_test[['sintpkt', 'dintpkt']].sum(axis=1)
     
     X_train = X_train[feature_list]
     X_test = X_test[feature_list]
@@ -69,15 +65,15 @@ if __name__ == "__main__":
     y_train = y_train.iloc[X_train.index]
     y_test = y_test.iloc[X_test.index]
     
-    variables["conv_threshold"] = 10e-5
+    variables["conv_threshold"] = 1e-5
     variables["delta_threshold"] = delta_threshold
     variables["num_units"] = [1024]
 
-    ngam = NeuralGAM(num_inputs = len(X_train.columns), family="binomial", num_units=variables["num_units"])
+    ngam = NeuralGAM(num_inputs = len(X_train.columns), family="binomial", num_units=variables["num_units"], learning_rate=0.001)
     tstart = datetime.now()
 
     print(X_train.shape)
-    muhat, gs_train = ngam.fit(X_train = X_train, 
+    muhat, gs_train, eta_train = ngam.fit(X_train = X_train, 
                                 y_train = y_train, 
                                 max_iter_ls = 10, 
                                 bf_threshold=10e-5,
@@ -89,20 +85,15 @@ if __name__ == "__main__":
     variables["eta0"] = ngam.eta0
     variables["training_seconds"] = training_seconds
 
-    y_pred = ngam.predict(X_test)
+    y_pred, eta_pred = ngam.predict(X_test)
     fs_pred = ngam.get_partial_dependencies(X_test)
-
-    err = mean_squared_error(y_train, ngam.y)
-    pred_err = mean_squared_error(y_test, y_pred)
-    variables["err"] = err
-    variables["err_test"] = pred_err
 
     from sklearn.metrics import roc_auc_score, precision_recall_fscore_support, classification_report
     auc = roc_auc_score(y_test, y_pred)
     print("Achieved AUC {0}".format(auc))
     threshold = youden(y_test, y_pred)
     y_bin = np.where(y_pred >= threshold, 1, 0)
-    pd.DataFrame(gs_train).to_csv(path + "/y_bin.csv")  
+    pd.DataFrame(y_bin).to_csv(path + "/y_bin.csv")  
     
     variables["auc"] = auc 
     variables["threshold"] = threshold

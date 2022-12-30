@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
             print("Generating " + type + " plots")
             
-            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(8.27*5,3.896*5))  # A4 width, A4/3 height (proportional)
+            fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(8.27*5,3.896*5))  # A4 width, A4/3 height (proportional) -- For squared use (25,20)
 
             # Set tick font size
             for ax in axs:
