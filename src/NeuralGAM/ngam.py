@@ -133,7 +133,7 @@ class NeuralGAM(tf.keras.Model):
                 for k in range(len(X_train.columns)):
                     
                     #Remove from Z the contributions of other features
-                    eta = eta - g[index[k]]
+                    eta = eta - f[index[k]]
                     residuals = Z - eta
 
                     if self._family == "binomial":
