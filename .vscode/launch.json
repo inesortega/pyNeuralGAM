@@ -5,60 +5,27 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
+            "name": "Python: NeuralGAM",
             "type": "python",
             "request": "launch",
-            "cwd": "${workspaceFolder}",
-            "envFile": "${workspaceFolder}/debug.env",
-            "program": "${file}",
-        },
-        {
-            "name": "Homoscedastic Uniform",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "cwd": "${workspaceFolder}",
-            "args": ["linear" ,"-t","homoscedastic", "-d", "uniform"]
-        },
-        {
-            "name": "Heteroscedastic Uniform",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "cwd": "${workspaceFolder}",
-            "args": ["linear", "-t","heteroscedastic", "-d", "uniform"]
-        },
-        {
-            "name": "Homoscedastic Normal",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "cwd": "${workspaceFolder}",
-            "args": ["linear", "-t","homoscedastic", "-d", "normal"]
-        },
-        {
-            "name": "Heteroscedastic Normal",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "cwd": "${workspaceFolder}",
-            "args": ["linear", "-t","heteroscedastic", "-d", "normal"]
-        },
-        {
-            "name": "Logistic Normal",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "cwd": "${workspaceFolder}",
-            "args": ["logistic", "-d", "normal", "-c", "0.00001", "-a", "0.1"]
-        },
-        {
-            "name": "Logistic Uniform",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "cwd": "${workspaceFolder}",
-            "args": ["logistic", "-d", "uniform", "-c", "0.00001", "-a", "0.1"]
+            "program": "Scenario_I.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "logistic",
+                "-d",
+                "uniform",
+                "-c",
+                "1e-5",
+                "-a",
+                "0.1",
+                "-u",
+                "1024",
+                "-l",
+                "0.0053",
+                "-o",
+                "results"
+            ]
         }
     ]
 }
