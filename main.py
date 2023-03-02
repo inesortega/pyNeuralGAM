@@ -56,7 +56,7 @@ parser.add_argument(
     "--ls_threshold",
     default=0.01,
     type=float,
-    metavar="Convergence Threshold of LS algorithm. Defaults to 0.1"
+    metavar="Convergence Threshold of LS algorithm. Defaults to 0.01"
 )
 parser.add_argument(
     "-ls",

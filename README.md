@@ -5,41 +5,33 @@
 | **[Usage](#usage)**
 
 
-NeuralGAM is a project for Generalized Additive Models (GAM) research. We provide a library which implements Neural GAMs: a way of fitting a Generalized Additive Model by learning a linear combination of Deep Neural Networks. GAMs are a class of non-parametric regression models, where each input feature is a smooth function. 
+Neural Networks are one of the most popular methods nowadays given their high performance on diverse tasks, such as computer vision, anomaly detection, computer-aided disease detection and diagnosis or natural language processing. However, it is usually unclear how neural networks make decisions, and current methods that try to provide interpretability to neural networks are not robust enough. 
 
-![formula](https://latex.codecogs.com/gif.latex?E%5BY%7C%5Ctextbf%7BX%7D%5D%20%3D%20%5Ceta%28%5Calpha%20&plus;%20f_1%28X_1%29%20&plus;%20...%20&plus;%20f_p%28X_p%29%29)
-
-Each neural network attends to a single input feature. The NeuralGAM is fitted using the backfitting and local scoring algorithms, where a Deep Neural Network is fitted one epoch at a time to learn a smooth function representing the smottthed fit for the residuals of all the others variables. 
-
-## Overview
-
-```python
-from src.NeuralGAM.ngam import NeuralGAM
-from src.utils.utils import generate_data, plot_multiple_partial_dependencies
-```
-
-### Synthetic datasets
-
-We provide a set of datasets to test NeuralGAM for linear/logistic regression problems (folder datasets)
-
-| Type     | Description                                    | Values |
-| -----------   | ---------------------------------------------- | ------------------------- |
-| GAM type      | Linear Regression (gaussian) or Logistic Regression (binomial) | {gaussian, binomial}                   |
-| type          | homogeneity of variance on the intercept term  | {homoscedastic, heteroscedastic}       |
-| distibution   | distribution of the X                          | {normal, uniform} 
-
-The simulation generates three different features, each modeling a different function. 
+We introduce **NeuralGAM**, a neural network based on **Generalized Additive Models**, which trains a different neural network to estimate the contribution of each feature to the response variable. The networks are trained independently leveraging the local scoring and backfitting algorithms to ensure that the Generalized Additive Model converges and it is additive. The resultant model is a highly accurate and interpretable deep learning model, which can be used for high-risk AI practices where decision-making should be based on accountable and interpretable algorithms. The validity of the proposed algorithm is evaluated through different simulation studies with synthetic datasets, performing well and similarly to another Generalized Additive Model implementation based on Neural Networks but providing higher interpretability. In addition, we evaluate the applicability of NeuralGAM for Distributed Denial of Service cyberattack detection on a dataset captured on an Industrial Control System.
 
 ### Parameters
 
-The main script accepts the following parameters:
+#### NeuralGAM
+To create a NeuralGAM object, the following parameters are required: 
 
-| Parameter | Shortcut |  Description | Default Value |
+| Parameter | Description | Default Value |
+| ------------------  | --- | ---------------------------------------------- |
+| num_inputs | number of features, representing the number of sub-networks that NeuralGAM will train. | n/a |
+| family | type of GAM {gaussian, binomial}. Use gaussian for Linear Regression and binomial for Logistic Regression | gaussian |
+| num_units | number of hidden units per hidden layer on the Neural Network. You can provide a list of values to set multiple hidden layers (i.e. [1024,512,256]) | n/a |
+| learning_rate | Learning rate for the Stochastic Gradient Descent Algorithm | 0.001 |
+
+#### Sample script
+
+The main.py script is provided to show a sample execution of NeuralGAM, and accepts the following parameters:
+
+| Parameter | Shortcut |  Description | Example Value |
 | ------------------  | --- | ---------------------------------------------- | ------------------------- |
-| --input | -i | input folder with X_train, y_train, X_test, y_test files | ./dataset/homoscedastic_uniform_gaussian |
+| --input | -i | input folder with X_train, y_train, X_test, y_test files | ./dataset/Scenario_I/homoscedastic_uniform_gaussian |
 | --output | -o | output folder to store results and plots | ./results |
-| --units | -u | number of hidden units per hidden layer on the main DNN. You can provide a list of values to set multiple hidden layers (i.e. 1024,512,256) | 1024 |
+| --units | -u | number of hidden units per hidden layer on the main DNN. You can provide a list of values to set multiple hidden layers (i.e. [1024,512,256]) | 1024 |
 | --family | -f | type of GAM {gaussian, binomial}. Use gaussian for Linear Regression and binomial for Logistic Regression | gaussian |
+| --lr | -l | Learning Rate |  0.001 |
 | --bf_threshold | -c | Convergence Threshold of the backfitting algorithm | 10e-5 |
 | --ls_threshold | -d | Convergence Threshold of the Local Scoring algorithm | 0.01 |
 | --maxiter_ls| -ls | Maximum iterations to run the Local Scoring algorithm if it does not converge before | 10 |
@@ -47,36 +39,43 @@ The main script accepts the following parameters:
 
 #### Running NeuralGAM
 
+##### Linear Regression: 
 ```bash
-python main.py -i ./dataset/heteroscedastic_uniform_gaussian -o ./results/heteroscedastic_uniform_gaussian -u 1024 -f gaussian -c 0.00001 -d 0.01 -ls 1 -bf 1
-python main.py -i ./dataset/uniform_binomial -o ./results/uniform_binomial -u 1024 -f binomial -c 0.00001 -d 0.01 -ls 1 -bf 1  
+python main.py -f gaussian -i ./dataset/Scenario_I/heteroscedastic_uniform_gaussian -o ./results/heteroscedastic_uniform_gaussian -u 1024 -c 0.00001 -d 0.01 --maxiter_ls 1 --maxiter_bf 10
+```
+
+##### Logistic Regression: 
+```bash
+python main.py -f binomial -i ./dataset//Scenario_I/uniform_binomial -o ./results/uniform_binomial -u 1024 -c 0.00001 -d 0.01 -ls 1 -bf 1
 ```
 
 ## Fitting and visualizing NeuralGAM
 
+Example of fittinga and visualizing a NeuralGAM for logistic regression (gaussian family)
 ```python
-ngam = NeuralGAM(num_inputs = len(X_train.columns), family=variables["family"], num_units=units)
-muhat, fs_train = ngam.fit(X_train = X_train, 
+ngam = NeuralGAM(num_inputs = len(X_train.columns), family="gaussian", num_units=units, learning_rate=learning_rate)
+
+muhat, fs_train_estimated, eta = ngam.fit(X_train = X_train, 
                                 y_train = y_train, 
-                                max_iter = variables["ls"], 
-                                bf_threshold=variables["bf_threshold"],
-                                ls_threshold=variables["ls_threshold"],
-                                max_iter_backfitting=variables["bf"])
+                                max_iter_ls = 10, 
+                                bf_threshold=10e-5,
+                                ls_threshold=0.01,
+                                max_iter_backfitting=10)
+
 learned_y = ngam.y
-err = mean_squared_error(y_train, learned_y)
+err = mean_squared_error(y_train, muhat)
 ```
 
-After fitting, the NeuralGAM model returns the learned response function and partial dependence plots after training.  
+After fitting, the NeuralGAM model returns the learned response function and partial dependence plots learnt during training.  
 
 ```python
-fs_pred = ngam.get_partial_dependencies(X_test)
-plot_partial_dependencies(x=X_test, fs=fs_pred, title="Test Partial Dependence Plot", output_path=output_path + "/pdp_test.png")
-plot_partial_dependencies(x=X_train, fs=fs_train, title="Training Partial Dependence Plot", output_path=output_path + "/pdp_train.png")
+plot_partial_dependencies(x=X_train, fs=fs_train_estimated, title="Training Partial Dependence Plot", output_path=output_path + "/pdp_train.png")
 ```
 
 The following image shows the resultant theoretical model from the homoscedastic_uniform_gaussian dataset (in blue), the learned functions for each feature after the training process (orange), and the predicted functions from the test set (green), for a linear regression simulation with heteroscedastic intercept and normally distributed data. 
 
-![](functions.png)
+<img src="function.png" width="50%" height="50%">
+
 ## Usage
 
 ```bash
@@ -85,3 +84,36 @@ usage: main.py [-h] [-i INPUT] [-o OUTPUT] [-u UNITS] [-f Distribution Family. U
                [-c Convergence Threshold of backfitting algorithm. Defaults to 10e-5] [-d Convergence Threshold of LS algorithm. Defaults to 0.1]
                [-ls Max iterations of LS algorithm. Defaults to 10.] [-bf Max iterations of Backfitting algorithm. Defaults to 10]
 ```
+
+### Synthetic datasets
+
+We provide a set of simulation scenarios to test NeuralGAM for linear/logistic regression problems (Dataset folder). We used a sample size of $n = 30625$ for all the datasets, which was split into 80\% for training the model and 20\% for testing.
+
+#### Scenario I
+
+For the first scenario, we considered the following predictor:
+
+$\eta = \alpha + \sum_{j=1}^3 f_j(X_j),$
+
+with
+
+<img src="https://latex2png.com/pngs/8432e766d80de50581a5ba72de0d82f7.png"  width="20%" height="20%">
+
+$\alpha = 2$, and covariates $X_j$ drawn from an uniform distribution $U\left[-2.5, 2.5\right]$.
+
+Based on this scenario, three different simulations were carried out considering two different response distributions
+
+- $Y = \eta + \varepsilon$, where $\varepsilon$ is the error distributed in accordance to a $N(0,\sigma(x)$). In this case, we consider an homoscedastic situation with $\sigma(x) = 0.5$ (R1) and  a heteroscedastic one with $\sigma(x) = 0.5 + \mid 0.25 \times \eta \mid$ (R2).
+- $Y \sim \text{Bernoulli}(p)$,  with $p = \exp (\eta) / \exp (1 + \eta)$ (R3).
+
+#### Scenario II
+
+Scenario II replicates the simulation scenario from [Arwal *et al.* (2021)](https://arxiv.org/pdf/2004.13912v2.pdf), focusing on $\textit{Task}_0$, where the response $Y$ is given by
+
+$Y = \sum_{j=1}^3 f_j(X_j) + \varepsilon ,$
+
+with 
+
+<img src="http://latex2png.com/pngs/6236db952b82dc126167d9084e6b18ac.png" width="20%" height="20%">
+
+covariates $X_j$ drawn from an uniform distribution $U\left[-1, 1\right]$ and $\varepsilon$ sampled from a Normal distribution $N(0,\frac{5}{6})$.

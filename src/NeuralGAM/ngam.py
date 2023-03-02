@@ -20,7 +20,7 @@ class NeuralGAM(tf.keras.Model):
         num_inputs: number of features or variables in input data
         family: distribution family {gaussian, binomial}
         num_units: Number of hidden units in the hidden layer of each feature network - default 1024
-    
+        learning_rate: Learning rate for the SGD algorithm. 
     """
 
     def __init__(self,

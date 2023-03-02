@@ -90,7 +90,6 @@ def plot_y_histogram(dataframe_list: list, legends: list, title:str, output_path
 
  
 def experiments_plot_partial_dependencies(x_list, f_list, legends, title, output_path=None):    
-    
     fig, axs = plt.subplots(nrows=1, ncols=len(f_list[0].columns), figsize=(25,20))
     fig.suptitle(title)
 
@@ -98,10 +97,10 @@ def experiments_plot_partial_dependencies(x_list, f_list, legends, title, output
         data = pd.DataFrame()
         for j in range(len(x_list)):
             if j==0:
-                color = "red"
+                color = "royalblue"
                 style = "-"
             else:
-                color = "green"
+                color = "mediumseagreen"
                 style = "--"
 
             data['x'] = x_list[j][x_list[j].columns[i]]
@@ -109,22 +108,19 @@ def experiments_plot_partial_dependencies(x_list, f_list, legends, title, output
             sns.lineplot(data = data, x='x', y='y', ax=axs[i], color=color, linestyle=style)
             
         axs[i].grid()
+        axs[i].set_xlabel(f"$X_{i+1}$", fontsize=30)
+        axs[i].set_ylabel(f"$f(x_{i+1})$", fontsize=30)
     
-    axs[0].set_title("f(x) = 2x\N{SUBSCRIPT ONE}")
-    axs[1].set_title("f(x) = x\N{SUBSCRIPT TWO}\u00b2")
-    axs[2].set_title("f(x) = sen(x\N{SUBSCRIPT THREE})")
-
     import matplotlib.patches as mpatches
 
     theoretical_patch = mpatches.Patch(color='red', label='Theoretical f(x)')
     learned_patch = mpatches.Patch(color='green', label='Learned f(x) from Neural GAM')
-    #quantiles = mpatches.Patch(color='grey', label='Confidence Intervals at 95%')
     
     plt.tight_layout()
     fig.legend(handles=[theoretical_patch, learned_patch], loc='lower center', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=5)
     
     if output_path:
-        plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
+        plt.savefig(output_path, bbox_inches = "tight")
         fig = plt.gcf()
 
 
