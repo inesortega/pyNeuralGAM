@@ -1,9 +1,15 @@
 # Neural GAM: Neural Generalized Additive Models
 
-  **[Overview](#overview)**
-| **[NeuralGAM Visualization](#neuralgam-visualization)**
-| **[Usage](#usage)**
+## Table of contents
 
+1. [Parameters](#parameters)
+    1. [NeuralGAM](#neuralgam)
+    2. [Sample script](#sample-script)
+2. [Running NeuralGAM](#running-neuralgam)
+    1. [Linear Regression](#linear-regression)
+    2. [Logistic Regression](#logistic-regression)
+3. [Fitting and visualizing NeuralGAM](#fitting-and-visualizing-neuralgam)
+4. [Sample Usage](#usage)
 
 Neural Networks are one of the most popular methods nowadays given their high performance on diverse tasks, such as computer vision, anomaly detection, computer-aided disease detection and diagnosis or natural language processing. However, it is usually unclear how neural networks make decisions, and current methods that try to provide interpretability to neural networks are not robust enough. 
 
@@ -93,7 +99,7 @@ We provide a set of simulation scenarios to test NeuralGAM for linear/logistic r
 
 For the first scenario, we considered the following predictor:
 
-$\eta = \alpha + \sum_{j=1}^3 f_j(X_j),$
+$\eta = \alpha + \sum^3_{j=1} f_j(X_j),$
 
 with
 
@@ -110,7 +116,7 @@ Based on this scenario, three different simulations were carried out considering
 
 Scenario II replicates the simulation scenario from [Arwal *et al.* (2021)](https://arxiv.org/pdf/2004.13912v2.pdf), focusing on $\textit{Task}_0$, where the response $Y$ is given by
 
-$Y = \sum_{j=1}^3 f_j(X_j) + \varepsilon ,$
+$Y = \sum^3_{j=1} f_j(X_j) + \varepsilon ,$
 
 with 
 
