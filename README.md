@@ -109,7 +109,7 @@ $\alpha = 2$, and covariates $X_j$ drawn from an uniform distribution $U\left[-2
 
 Based on this scenario, three different simulations were carried out considering two different response distributions
 
-- $Y = \eta + \varepsilon$, where $\varepsilon$ is the error distributed in accordance to a $N(0,\sigma(x)$). In this case, we consider an homoscedastic situation with $\sigma(x) = 0.5$ (R1) and  a heteroscedastic one with $\sigma(x) = 0.5 + \mid 0.25 \times \eta \mid$ (R2).
+- $Y = \eta + \varepsilon$, where $\varepsilon$ is the error distributed in accordance to a $N(0,\sigma(x)$. In this case, we consider an homoscedastic situation with $\sigma(x) = 0.5$ (R1) and  a heteroscedastic one with $\sigma(x) = 0.5 + \mid 0.25 \times \eta \mid$ (R2).
 - $Y \sim \text{Bernoulli}(p)$,  with $p = \exp (\eta) / \exp (1 + \eta)$ (R3).
 
 #### Scenario II
