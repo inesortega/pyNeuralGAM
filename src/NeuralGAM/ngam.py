@@ -173,7 +173,7 @@ class NeuralGAM(tf.keras.Model):
             it+=1
         
         #  out local scoring
-        print("END Local Scoring Algorithm at iteration {0}, dev_delta = {1}, eta0 = {2}".format(it, dev_delta, self.eta0))
+        print("END Local Scoring Algorithm at iteration {0}, dev_delta = {1}, eta0 = {2}".format(it-1, dev_delta, self.eta0))
         
         # Reconstruct learnt y
         self.y = self.apply_link(eta)
