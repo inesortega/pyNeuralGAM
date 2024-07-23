@@ -15,6 +15,29 @@ Neural Networks are one of the most popular methods nowadays given their high pe
 
 We introduce **NeuralGAM**, a neural network based on **Generalized Additive Models**, which trains a different neural network to estimate the contribution of each feature to the response variable. The networks are trained independently leveraging the local scoring and backfitting algorithms to ensure that the Generalized Additive Model converges and it is additive. The resultant model is a highly accurate and interpretable deep learning model, which can be used for high-risk AI practices where decision-making should be based on accountable and interpretable algorithms. The validity of the proposed algorithm is evaluated through different simulation studies with synthetic datasets, performing well and similarly to another Generalized Additive Model implementation based on Neural Networks but providing higher interpretability. In addition, we evaluate the applicability of NeuralGAM for Distributed Denial of Service cyberattack detection on a dataset captured on an Industrial Control System.
 
+This software is also available as an [R package at the CRAN](https://cran.r-project.org/web/packages/neuralGAM/index.html) and in the following [Github Repository](https://github.com/inesortega/neuralGAM/).  
+
+### Citation
+
+If you use neuralGAM in your research, please cite the following paper:
+
+> Ortega-Fernandez, I., Sestelo, M. & Villanueva, N.M. _Explainable generalized additive neural networks with independent neural network training_. Statistics & Computing 34, 6 (2024). https://doi.org/10.1007/s11222-023-10320-5
+
+```
+@article{ortega2024explainable,
+author = {Ortega-Fernandez, Ines and Sestelo, Marta and Villanueva, Nora M},
+doi = {10.1007/s11222-023-10320-5},
+issn = {1573-1375},
+journal = {Statistics and Computing},
+number = {1},
+pages = {6},
+title = {{Explainable generalized additive neural networks with independent neural network training}},
+url = {https://doi.org/10.1007/s11222-023-10320-5},
+volume = {34},
+year = {2023}
+}
+```       
+
 ### Parameters
 
 #### NeuralGAM
