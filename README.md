@@ -1,4 +1,4 @@
-# Neural GAM: Neural Generalized Additive Models
+# NeuralGAM: Interpretable Neural Network Based on Generalized Additive Models
 
 ## Table of contents
 
