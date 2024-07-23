@@ -1,19 +1,19 @@
-# NeuralGAM: Interpretable Neural Network Based on Generalized Additive Models
+# neuralGAM: Interpretable Neural Network Based on Generalized Additive Models
 
 ## Table of contents
 
 1. [Parameters](#parameters)
-    1. [NeuralGAM](#neuralgam)
+    1. [neuralGAM](#neuralGAM)
     2. [Sample script](#sample-script)
-2. [Running NeuralGAM](#running-neuralgam)
+2. [Running neuralGAM](#running-neuralGAM)
     1. [Linear Regression](#linear-regression)
     2. [Logistic Regression](#logistic-regression)
-3. [Fitting and visualizing NeuralGAM](#fitting-and-visualizing-neuralgam)
+3. [Fitting and visualizing neuralGAM](#fitting-and-visualizing-neuralGAM)
 4. [Sample Usage](#usage)
 
 Neural Networks are one of the most popular methods nowadays given their high performance on diverse tasks, such as computer vision, anomaly detection, computer-aided disease detection and diagnosis or natural language processing. However, it is usually unclear how neural networks make decisions, and current methods that try to provide interpretability to neural networks are not robust enough. 
 
-We introduce **NeuralGAM**, a neural network based on **Generalized Additive Models**, which trains a different neural network to estimate the contribution of each feature to the response variable. The networks are trained independently leveraging the local scoring and backfitting algorithms to ensure that the Generalized Additive Model converges and it is additive. The resultant model is a highly accurate and interpretable deep learning model, which can be used for high-risk AI practices where decision-making should be based on accountable and interpretable algorithms. The validity of the proposed algorithm is evaluated through different simulation studies with synthetic datasets, performing well and similarly to another Generalized Additive Model implementation based on Neural Networks but providing higher interpretability. In addition, we evaluate the applicability of NeuralGAM for Distributed Denial of Service cyberattack detection on a dataset captured on an Industrial Control System.
+We introduce **neuralGAM**, a neural network based on **Generalized Additive Models**, which trains a different neural network to estimate the contribution of each feature to the response variable. The networks are trained independently leveraging the local scoring and backfitting algorithms to ensure that the Generalized Additive Model converges and it is additive. The resultant model is a highly accurate and interpretable deep learning model, which can be used for high-risk AI practices where decision-making should be based on accountable and interpretable algorithms. The validity of the proposed algorithm is evaluated through different simulation studies with synthetic datasets, performing well and similarly to another Generalized Additive Model implementation based on Neural Networks but providing higher interpretability. In addition, we evaluate the applicability of neuralGAM for Distributed Denial of Service cyberattack detection on a dataset captured on an Industrial Control System.
 
 This software is also available as an [R package at the CRAN](https://cran.r-project.org/web/packages/neuralGAM/index.html) and in the following [Github Repository](https://github.com/inesortega/neuralGAM/).  
 
@@ -40,19 +40,19 @@ year = {2023}
 
 ### Parameters
 
-#### NeuralGAM
-To create a NeuralGAM object, the following parameters are required: 
+#### neuralGAM
+To create a neuralGAM object, the following parameters are required: 
 
 | Parameter | Description | Default Value |
 | ------------------  | --- | ---------------------------------------------- |
-| num_inputs | number of features, representing the number of sub-networks that NeuralGAM will train. | n/a |
+| num_inputs | number of features, representing the number of sub-networks that neuralGAM will train. | n/a |
 | family | type of GAM {gaussian, binomial}. Use gaussian for Linear Regression and binomial for Logistic Regression | gaussian |
 | num_units | number of hidden units per hidden layer on the Neural Network. You can provide a list of values to set multiple hidden layers (i.e. [1024,512,256]) | n/a |
 | learning_rate | Learning rate for the Stochastic Gradient Descent Algorithm | 0.001 |
 
 #### Sample script
 
-The main.py script is provided to show a sample execution of NeuralGAM, and accepts the following parameters:
+The main.py script is provided to show a sample execution of neuralGAM, and accepts the following parameters:
 
 | Parameter | Shortcut |  Description | Example Value |
 | ------------------  | --- | ---------------------------------------------- | ------------------------- |
@@ -66,7 +66,7 @@ The main.py script is provided to show a sample execution of NeuralGAM, and acce
 | --maxiter_ls| -ls | Maximum iterations to run the Local Scoring algorithm if it does not converge before | 10 |
 | --maxiter_bf | -bf | Maximum iterations to run the Backfitting algorithm if it does not converge before | 10 | 
 
-#### Running NeuralGAM
+#### Running neuralGAM
 
 ##### Linear Regression: 
 ```bash
@@ -78,11 +78,11 @@ python main.py -f gaussian -i ./dataset/Scenario_I/heteroscedastic_uniform_gauss
 python main.py -f binomial -i ./dataset//Scenario_I/uniform_binomial -o ./results/uniform_binomial -u 1024 -c 0.00001 -d 0.01 -ls 1 -bf 1
 ```
 
-## Fitting and visualizing NeuralGAM
+## Fitting and visualizing neuralGAM
 
-Example of fittinga and visualizing a NeuralGAM for logistic regression (gaussian family)
+Example of fittinga and visualizing a neuralGAM for logistic regression (gaussian family)
 ```python
-ngam = NeuralGAM(num_inputs = len(X_train.columns), family="gaussian", num_units=units, learning_rate=learning_rate)
+ngam = neuralGAM(num_inputs = len(X_train.columns), family="gaussian", num_units=units, learning_rate=learning_rate)
 
 muhat, fs_train_estimated, eta = ngam.fit(X_train = X_train, 
                                 y_train = y_train, 
@@ -95,7 +95,7 @@ learned_y = ngam.y
 err = mean_squared_error(y_train, muhat)
 ```
 
-After fitting, the NeuralGAM model returns the learned response function and partial dependence plots learnt during training.  
+After fitting, the neuralGAM model returns the learned response function and partial dependence plots learnt during training.  
 
 ```python
 plot_partial_dependencies(x=X_train, fs=fs_train_estimated, title="Training Partial Dependence Plot", output_path=output_path + "/pdp_train.png")
@@ -116,7 +116,7 @@ usage: main.py [-h] [-i INPUT] [-o OUTPUT] [-u UNITS] [-f Distribution Family. U
 
 ### Synthetic datasets
 
-We provide a set of simulation scenarios to test NeuralGAM for linear/logistic regression problems (Dataset folder). We used a sample size of $n = 30625$ for all the datasets, which was split into 80\% for training the model and 20\% for testing.
+We provide a set of simulation scenarios to test neuralGAM for linear/logistic regression problems (Dataset folder). We used a sample size of $n = 30625$ for all the datasets, which was split into 80\% for training the model and 20\% for testing.
 
 #### Scenario I
 
