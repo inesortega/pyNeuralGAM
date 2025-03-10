@@ -1,22 +1,23 @@
+from concurrent.futures import ThreadPoolExecutor 
 from typing import Union
 import numpy as np
 import pandas as pd
-import sklearn
 from sklearn.metrics import mean_squared_error
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, LeakyReLU
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import L2
-from tensorflow.python.training.tracking.data_structures import ListWrapper
 
 TfInput = Union[np.ndarray, tf.Tensor]
-import dill
-import os
+
+if __debug__:   # Print TensorFlow version and GPU availability
+    print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+    print("TensorFlow version: ", tf.__version__)
+
 class NeuralGAM(tf.keras.Model):
     """
     Neural Generalized Additive Model.
-
         num_inputs: number of features or variables in input data
         family: distribution family {gaussian, binomial}
         num_units: Number of hidden units in the hidden layer of each feature network - default 1024
@@ -37,10 +38,13 @@ class NeuralGAM(tf.keras.Model):
             **kwargs: Arbitrary keyword arguments. Used for passing the `activation`
             function as well as the `name_scope`.
         """
-        super(NeuralGAM, self).__init__("NeuralGAM")
-        self._num_inputs = num_inputs
+        super(NeuralGAM, self).__init__()
+        if type(num_units) is int:
+            self._num_units = num_units
+        else:
+            self._num_units = list(num_units)
         self._family = family
-        self._num_units = num_units
+        self._num_inputs = num_inputs
         self._kwargs = kwargs
         self.feature_networks = [None] * self._num_inputs
         self.eta0 = 0
@@ -56,12 +60,12 @@ class NeuralGAM(tf.keras.Model):
         # add input layer
         model.add(Dense(1))
         # add hidden layer(s). If self._num_units is a list, add one layer per size in the list
-        if type(self._num_units) is ListWrapper:
-            for i in range(len(self._num_units)):
-                model.add(Dense(self._num_units[i], kernel_initializer='glorot_normal', activation='relu'))
-        else:
+        if type(self._num_units) is int:
             # single layer (shallow) NeuralGAM
             model.add(Dense(self._num_units, kernel_initializer='glorot_normal', activation='relu'))
+        else:
+            for i in range(len(self._num_units)):
+                model.add(Dense(self._num_units[i], kernel_initializer='glorot_normal', activation='relu'))
         
         model.add(Dense(1))
         model.compile(loss= "mean_squared_error", optimizer=Adam(learning_rate=self.lr))
@@ -71,6 +75,42 @@ class NeuralGAM(tf.keras.Model):
         """Builds a FeatureNNs for each feature """
         for i in range(self._num_inputs):
             self.feature_networks[i] = self.build_feature_NN(layer_name="layer_{0}".format(i))
+
+    def process_feature(self, k, eta, g, W, Z, X_train, index):
+        """
+        Processes a single feature during the training of the neural network.
+
+        Args:
+            k (int): Index of the feature to process.
+            eta (np.ndarray): Current estimate of the additive predictor.
+            g (np.ndarray): Array of contributions from each feature. Updated at each iteration of the backfitting algorithm. 
+            W (np.ndarray): Sample weights.
+            Z (np.ndarray): Adjusted response variable.
+            X_train (pd.DataFrame): Training data.
+            index (np.ndarray): Indices of the features.
+            family (str): Distribution family.
+            feature_network (Sequential): Neural network model for the specific feature.
+
+        Returns:
+            tuple: Updated contribution of the feature and updated additive predictor.
+        """
+        # Remove from Z the contributions of other features
+        eta = eta - g[index[k]]
+        residuals = Z - eta
+
+        if self._family == "binomial":
+            self.feature_networks[k].compile(loss="mean_squared_error", 
+                                    optimizer="adam",
+                                    loss_weights=pd.Series(W))
+        self.feature_networks[k].fit(X_train[X_train.columns[k]], 
+                        residuals, 
+                        epochs=1, 
+                        sample_weight=pd.Series(W) if self._family == "binomial" else None)
+        # Update f with current learned function for predictor k
+        f_k = self.feature_networks[k].predict(X_train[X_train.columns[k]])
+        f_k = f_k - np.mean(f_k)
+        return f_k
+    
 
     def fit(self, X_train, y_train, max_iter_ls, w_train = None, bf_threshold=0.00001, ls_threshold = 0.01, max_iter_backfitting = 10):
         """
@@ -85,11 +125,22 @@ class NeuralGAM(tf.keras.Model):
             max_iter: maximum number of iterations of the Local Scoring algorithm (for binomial family only)
             max_iter_backfitting: (optional) maximum number of iterations of the Backfitting algorithm. Defaults to 10
         Returns:
-            y: learnt estimator
+            y: learnt response
             g: learned functions for each variable
+            eta: learnt addive estimator
         """
+        
+        # Check if the family is binomial or gaussian
+        if self._family not in ["binomial", "gaussian"]:    
+            raise ValueError("Invalid family type. Choose between 'binomial' and 'gaussian'")
+        
         print("\n\nFitting GAM \n -- max_it = {0}\n -- max_iter_backfitting = {1}\n -- ls_threshold = {2}\n -- bf_threshold={3}\n -- learning_rate={4}\n\n".format(max_iter_ls, max_iter_backfitting, ls_threshold, bf_threshold, self.lr))
         
+        parallel = False
+        if parallel:
+            print("Using parallel execution")
+        else:
+            print("Using sequential execution")
         #Initialization
         converged = False
         f = X_train*0
@@ -130,35 +181,30 @@ class NeuralGAM(tf.keras.Model):
             err = bf_threshold + 0.1     
             while( (err > bf_threshold) and (it_backfitting <= max_iter_backfitting)):
                 # estimate each function
-                for k in range(len(X_train.columns)):
-                    
-                    #Remove from Z the contributions of other features
-                    eta = eta - g[index[k]]
-                    residuals = Z - eta
 
-                    if self._family == "binomial":
-                        self.feature_networks[k].compile(loss= "mean_squared_error", 
-                                                        optimizer="adam",
-                                                        loss_weights= pd.Series(W))
-                    self.feature_networks[k].fit(X_train[X_train.columns[k]], 
-                                                 residuals, 
-                                                 epochs=1, 
-                                                 sample_weight = pd.Series(W) if self._family == "binomial" else None)
-                    # Update f with current learned function for predictor k
-                    f[index[k]] = self.feature_networks[k].predict(X_train[X_train.columns[k]])
-                    f[index[k]] = f[index[k]] - np.mean(f[index[k]])
-                    eta = eta + f[index[k]]  
-
+                if parallel:
+                    with ThreadPoolExecutor(max_workers=None) as executor:
+                        futures = [executor.submit(self.process_feature, k, eta, g, W, Z, X_train, index) for k in range(len(X_train.columns))]
+                        results = [future.result() for future in futures]
+                        
+                    # Update f and eta with the results from the parallel execution
+                    for k, f_k in enumerate(results):
+                        f[index[k]] = f_k
+                else:
+                    for k in range(len(X_train.columns)):
+                        f[index[k]] = self.process_feature(k, eta, g, W, Z, X_train, index)
+                
                 # update current estimations
                 g = f.copy(deep=True)
                 eta = self.eta0 + g.sum(axis=1)
-      
-                #compute the differences in the predictor at each iteration
+                
+                # compute the differences in the predictor at each iteration
                 err = np.sum(eta - eta_prev)**2 / np.sum(eta_prev**2)
                 eta_prev = eta
                 print("BACKFITTING ITERATION #{0}: Current err = {1}".format(it_backfitting, err))
                 it_backfitting = it_backfitting + 1
                 self.training_err.append(err)
+
 
             muhat = self.apply_link(eta)
             dev_old = dev_new
@@ -293,12 +339,21 @@ class NeuralGAM(tf.keras.Model):
         else:
             raise ValueError("Invalid family type")
 
-    
 def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, output_path: str = None):    
+    """
+    Plots partial dependency plots for each feature in the dataset.
+    Parameters:
+    x (pd.DataFrame): DataFrame containing the input features.
+    fs (pd.DataFrame): DataFrame containing the partial dependency function values for each feature.
+    title (str): Title for the entire plot.
+    output_path (str, optional): Path to save the plot. If None, the plot is not saved. Default is None.
+    Returns:
+    None
+    """
     import matplotlib
     import matplotlib.pyplot as plt
     import seaborn as sns
-    plt.style.use('seaborn')
+    plt.style.use('seaborn-v0_8')
 
     params = {"axes.linewidth": 2,
             "font.family": "serif",
@@ -307,7 +362,6 @@ def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, out
     axis_font = {'fontname':'serif', 'size':'14'}
     matplotlib.rcParams['agg.path.chunksize'] = 10000
     plt.rcParams.update(params)
-    plt.style.use('seaborn-darkgrid')
 
     fig, axs = plt.subplots(nrows=1, ncols=len(fs.columns), figsize=(25,20))
     fig.suptitle(title)
@@ -317,7 +371,8 @@ def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, out
         data['x'] = x[x.columns[i]]
         data['f(x)']= fs[fs.columns[i]]
         
-        sns.lineplot(data = data, x='x', y='f(x)', color='royalblue', ax=axs[i])
+        with pd.option_context('mode.use_inf_as_na', True):
+            sns.lineplot(data = data, x='x', y='f(x)', color='royalblue', ax=axs[i])
         axs[i].grid()
         axs[i].set_xlabel(f'$X_{i+1}$', **axis_font)
         axs[i].set_ylabel(f'$f(x_{i+1})$', **axis_font)
@@ -326,9 +381,9 @@ def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, out
         for label in (axs[i].get_xticklabels() + axs[i].get_yticklabels()):
             label.set_fontname('serif')
             label.set_fontsize(20)
-    
-    plt.tight_layout()
-    
-    if output_path:
-        plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
-        fig = plt.gcf()
+        
+        plt.tight_layout()
+        
+        if output_path:
+            plt.savefig(output_path, dpi = 300, bbox_inches = "tight")
+            fig = plt.gcf()

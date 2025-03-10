@@ -74,6 +74,7 @@ parser.add_argument(
     type=int,
     metavar="Max iterations of Backfitting algorithm. Defaults to 10"
 )
+
 if __name__ == "__main__":
     
     args = parser.parse_args()
@@ -87,6 +88,7 @@ if __name__ == "__main__":
     import pandas as pd
 
     units = [int(item) for item in variables["units"].split(',')]
+    
     lr = variables["lr"]
 
     output_path = os.path.normpath(os.path.abspath(os.path.join("./", variables["output"])))
@@ -109,18 +111,22 @@ if __name__ == "__main__":
 
     print("Startint NeuralGAM training  with {0} rows...".format(X_train.shape[0]))
     ngam = NeuralGAM(num_inputs = len(X_train.columns), family=variables["family"], num_units=units, learning_rate=lr)
-
     if variables["family"] != "gaussian":
         """ Ensure y_test / y_train are proper labels..."""
         if not np.logical_or(y_test == 0, y_test == 1).all() and not np.logical_or(y_train == 0, y_train == 1).all():
             raise Exception("To use Logistic Regression you must provide train/test labels in the discrete set {0,1}")
-
+    
+    import time
+    start_time = time.time()
     muhat, fs_train, eta = ngam.fit(X_train = X_train, 
                                 y_train = y_train, 
                                 max_iter_ls = variables["ls"], 
                                 bf_threshold=variables["bf_threshold"],
                                 ls_threshold=variables["ls_threshold"],
                                 max_iter_backfitting=variables["bf"])
+    end_time = time.time()
+    training_time = end_time - start_time
+    print(f"Training completed in {training_time:.2f} seconds")
     print("Starting Predict...")
     y_pred, eta_pred = ngam.predict(X_test)
 
