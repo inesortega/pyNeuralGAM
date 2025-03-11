@@ -3,6 +3,15 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error
+import os 
+import warnings
+
+if __debug__:
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+#warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, LeakyReLU
 from tensorflow.keras.models import Sequential
@@ -11,9 +20,8 @@ from tensorflow.keras.regularizers import L2
 
 TfInput = Union[np.ndarray, tf.Tensor]
 
-if __debug__:   # Print TensorFlow version and GPU availability
-    print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-    print("TensorFlow version: ", tf.__version__)
+print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+print("TensorFlow version: ", tf.__version__)
 
 class NeuralGAM(tf.keras.Model):
     """
@@ -112,7 +120,7 @@ class NeuralGAM(tf.keras.Model):
         return f_k
     
 
-    def fit(self, X_train, y_train, max_iter_ls, w_train = None, bf_threshold=0.00001, ls_threshold = 0.01, max_iter_backfitting = 10):
+    def fit(self, X_train, y_train, max_iter_ls, w_train = None, bf_threshold=0.00001, ls_threshold = 0.01, max_iter_backfitting = 10, parallel = False):
         """
         Iteratively fits a NAM model using one DNN per feature in
             
@@ -124,6 +132,7 @@ class NeuralGAM(tf.keras.Model):
             bf_threshold: (optional) threshold to stop Backfitting algorithm. Defaults to 0.01
             max_iter: maximum number of iterations of the Local Scoring algorithm (for binomial family only)
             max_iter_backfitting: (optional) maximum number of iterations of the Backfitting algorithm. Defaults to 10
+            parallel: (optional) whether to use parallel execution. Defaults to True
         Returns:
             y: learnt response
             g: learned functions for each variable
@@ -136,12 +145,14 @@ class NeuralGAM(tf.keras.Model):
         
         print("\n\nFitting GAM \n -- max_it = {0}\n -- max_iter_backfitting = {1}\n -- ls_threshold = {2}\n -- bf_threshold={3}\n -- learning_rate={4}\n\n".format(max_iter_ls, max_iter_backfitting, ls_threshold, bf_threshold, self.lr))
         
-        parallel = False
         if parallel:
-            print("Using parallel execution")
+            print("Using parallel execution. GPU usage will be disabled")
+            os.environ['CUDA_VISIBLE_DEVICES'] = ""
         else:
             print("Using sequential execution")
-        #Initialization
+            n_gpu = len(tf.config.list_physical_devices('GPU'))
+            if(n_gpu > 0):  
+                print("Using GPU for execution")
         converged = False
         f = X_train*0
         g = X_train*0
