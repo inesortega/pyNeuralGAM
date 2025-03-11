@@ -15,7 +15,8 @@ from scipy.stats import truncnorm
 import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
-plt.style.use('seaborn')
+
+plt.style.use('seaborn-v0_8')
 
 params = {"axes.linewidth": 2,
         "font.family": "serif"}

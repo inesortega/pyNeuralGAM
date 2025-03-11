@@ -79,12 +79,10 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     variables = vars(args)
-
-    print(f'\n\n{variables}\n\n')
     
     import pandas as pd
     from sklearn.metrics import mean_squared_error
-    from src.NeuralGAM.ngam import NeuralGAM, plot_partial_dependencies
+    from src.NeuralGAM.ngam_oneVsRest import NeuralGAM
     import pandas as pd
 
     units = [int(item) for item in variables["units"].split(',')]
@@ -102,34 +100,48 @@ if __name__ == "__main__":
     try:
         X_train = pd.read_csv(os.path.join(input_path, "X_train.csv"), index_col=0).reset_index(drop=True)
         y_train = pd.read_csv(os.path.join(input_path, "y_train.csv"), index_col=0).reset_index(drop=True).squeeze()
+        fs_train = pd.read_csv(os.path.join(input_path, "fs_train.csv"), index_col=0).reset_index(drop=True)
+        
+        # center theoretical fs for plotting
+        fs_train = fs_train - fs_train.mean()
 
         X_test = pd.read_csv(os.path.join(input_path, "X_test.csv"), index_col=0).reset_index(drop=True)
         y_test = pd.read_csv(os.path.join(input_path, "y_test.csv"), index_col=0).reset_index(drop=True).squeeze()
+        fs_test = pd.read_csv(os.path.join(input_path, "fs_test.csv"), index_col=0).reset_index(drop=True)
+        fs_test = fs_test - fs_test.mean()
+
+        #Convert to 0/1 with probability y_train
+        if variables["family"] == "binomial":
+            y_train = np.random.binomial(n=1, p=y_train, size=y_train.shape[0])
+            y_test =  np.random.binomial(n=1, p=y_test, size=y_test.shape[0])
+        
     except Exception as e:
         print("Failed to load data from {0}: {1}".format(input_path, e))
         exit(-1)
 
     print("Startint NeuralGAM training  with {0} rows...".format(X_train.shape[0]))
-    ngam = NeuralGAM(num_inputs = len(X_train.columns), family=variables["family"], num_units=units, learning_rate=lr)
+    ngam = NeuralGAM(p_terms = ["1"], np_terms=["0", "2"], family=variables["family"], num_units=units, learning_rate=lr)
+
     if variables["family"] != "gaussian":
         """ Ensure y_test / y_train are proper labels..."""
-        if not np.logical_or(y_test == 0, y_test == 1).all() and not np.logical_or(y_train == 0, y_train == 1).all():
-            raise Exception("To use Logistic Regression you must provide train/test labels in the discrete set {0,1}")
+        if not (np.logical_or(y_train == 0, y_train == 1).all()):
+            raise Exception("To use Logistic Regression you must provide train labels in the discrete set {0,1}")
     
     import time
     start_time = time.time()
-    muhat, fs_train, eta = ngam.fit(X_train = X_train, 
+    muhat, fs_train_est, eta = ngam.fit(X_train = X_train, 
                                 y_train = y_train, 
                                 max_iter_ls = variables["ls"], 
                                 bf_threshold=variables["bf_threshold"],
                                 ls_threshold=variables["ls_threshold"],
-                                max_iter_backfitting=variables["bf"])
+                                max_iter_backfitting=variables["bf"],
+                                parallel=True)
     end_time = time.time()
     training_time = end_time - start_time
     print(f"Training completed in {training_time:.2f} seconds")
     print("Starting Predict...")
-    y_pred, eta_pred = ngam.predict(X_test)
-
+    y_pred = ngam.predict(X_test, type = "response")
+    eta_pred = ngam.predict(X_test, type = "link")
     if variables["family"] == "gaussian":
         pred_err = mean_squared_error(y_test, eta_pred)
         variables["MSE_test"] = str(pred_err)
@@ -167,14 +179,18 @@ if __name__ == "__main__":
         pd.DataFrame(y_bin).to_csv(output_path + "/y_pred_binomial.csv")
         
     print("Obtaining Partial Dependence Plots...")
-    fs_pred = ngam.get_partial_dependencies(X_test)
+    fs_pred = ngam.predict(X_test, type="terms")
         
-    plot_partial_dependencies(x=X_train, fs=fs_train, title="Training Partial Dependence Plot", output_path=output_path + "/fs_train.png")
+    from src.utils.utils import experiments_plot_partial_dependencies
+    experiments_plot_partial_dependencies(x_list=[X_train, X_train], f_list=[fs_train, fs_train_est], legends=["true", "estimated"], title="Learnt Training Partial Effects", output_path=output_path + "/fs_train.png")
     
+    experiments_plot_partial_dependencies(x_list=[X_test, X_test], f_list=[fs_test, fs_pred], legends=["true", "estimated"], title="Partial Effects obtained in Test", output_path=output_path + "/fs_test.png")
+
+
     """ SAVE RESULTS"""
     pd.DataFrame(fs_pred).to_csv(output_path + "/fs_test_estimated.csv")
     pd.DataFrame(y_pred).to_csv(output_path + "/y_pred.csv")
-    pd.DataFrame(fs_train).to_csv(output_path + "/fs_train_estimated.csv")  
+    pd.DataFrame(fs_train_est).to_csv(output_path + "/fs_train_estimated.csv")  
     pd.DataFrame(eta).to_csv(output_path + "/eta.csv")  
     pd.DataFrame.from_dict(variables, orient="index").transpose().to_csv(output_path + "/results.csv", index=False)
 
