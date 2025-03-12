@@ -340,29 +340,35 @@ class NeuralGAM(tf.keras.Model):
             return y
 
 class NeuralGAMMultinomial:
-    def __init__(self, p_terms, np_terms, num_classes, num_units=1024, learning_rate=0.001, **kwargs):
+    def __init__(self, p_terms, np_terms, num_classes, num_units=1024, learning_rate=0.001, activation='relu', 
+                 kernel_initializer='glorot_normal', kernel_regularizer=None,
+                 loss=None, **kwargs):
         self.num_classes = num_classes
         # Create one NeuralGAM per class using the binomial family
         self.models = [NeuralGAM(p_terms=p_terms, np_terms=np_terms, family="binomial", 
-                                   num_units=num_units, learning_rate=learning_rate, **kwargs)
+                                   num_units=num_units, learning_rate=learning_rate, 
+                                   activation=activation, kernel_initializer=kernel_initializer, 
+                                   kernel_regularizer=kernel_regularizer, **kwargs)
                        for _ in range(num_classes)]
     
-    def fit(self, X_train, y_train, **fit_params):
+    def fit(self, X_train, y_train, max_iter_ls=10, w_train=None,
+            bf_threshold=0.001, ls_threshold=0.1, max_iter_backfitting=10, parallel = True, **fit_params):
         # Fit each model with binary labels for the corresponding class
-
-        # Check X_train contains p_terms and np_terms:
         for model in self.models:
             assert all(term in X_train.columns for term in model.p_terms + model.np_terms)
 
-        for k in range(self.num_classes):
+        for idx, k in enumerate(y_train.unique()):
             # Create binary targets for current class (one-vs-rest ): 1 if the class matches, else 0
-            y_binary = (y_train == k).astype(int)
+            y_binary = (y_train == k).astype(int) 
+            
             print(f"Training model for class {k}")
-            self.models[k].fit(X_train, y_binary, **fit_params)
+            
+            self.models[idx].fit(X_train, y_binary, max_iter_ls, w_train=w_train,
+            bf_threshold=bf_threshold, ls_threshold=ls_threshold, max_iter_backfitting=max_iter_backfitting, parallel = parallel, **fit_params)
     
     def predict(self, X_test):
         # Get predictions from each binary model
-        preds = np.column_stack([model.predict(X_test)[0] for model in self.models])
+        preds = np.column_stack([model.predict(X_test, type="response") for model in self.models])
         # Optionally, normalize using softmax to get calibrated probabilities:
         exp_preds = np.exp(preds)
         probs = exp_preds / np.sum(exp_preds, axis=1, keepdims=True)
