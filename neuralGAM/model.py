@@ -493,3 +493,117 @@ class NeuralGAM(tf.keras.Model):
         if type == "response":
             y = self.apply_link(eta)
             return y
+        
+class NeuralGAMMultinomial:
+    """
+    A class to represent a multinomial Generalized Additive Model (GAM) using neural networks.
+    Attributes
+    ----------
+    num_classes : int
+        The number of classes in the target variable.
+    models : list
+        A list of NeuralGAM models, one for each class.
+    Methods
+    -------
+    __init__: Constructs all the necessary attributes for the NeuralGAMMultinomial object.
+    fit: Fits the model to the training data.
+    predict: Predicts the class labels and probabilities for the test data.
+    """
+    def __init__(self, num_classes, num_units=1024, learning_rate=0.001, activation='relu', 
+                 kernel_initializer='glorot_normal', kernel_regularizer=None,
+                 loss=None, linear_terms=None, verbose = 0,**kwargs):
+        """
+        Initializes the multi-class NeuralGAM model.
+
+            Parameters:
+            num_classes (int): Number of classes for the classification task.
+            num_units (int, optional): Number of units in each hidden layer of the neural network. Default is 1024.
+            learning_rate (float, optional): Learning rate for the optimizer. Default is 0.001.
+            activation (str, optional): Activation function to use in the neural network. Default is 'relu'.
+            kernel_initializer (str, optional): Initializer for the kernel weights matrix. Default is 'glorot_normal'.
+            kernel_regularizer (optional): Regularizer function applied to the kernel weights matrix. Default is None.
+            loss (optional): Loss function to use. Default is None.
+            linear_terms (optional): Parametric terms for the model. Default is None.
+            **kwargs: Additional keyword arguments.
+
+            Attributes:
+            num_classes (int): Number of classes for the classification task.
+            models (list): List of NeuralGAM models, one for each class.
+        """
+
+        self.num_classes = num_classes
+        # Create one NeuralGAM per class using the binomial family
+        self.models = [NeuralGAM(family="binomial", num_units=num_units, learning_rate=learning_rate, 
+                                   activation=activation, kernel_initializer=kernel_initializer, 
+                                   kernel_regularizer=kernel_regularizer, linear_terms=linear_terms, verbose=verbose,**kwargs)
+                       for _ in range(num_classes)]
+    
+    def fit(self, X_train, y_train, max_iter_ls=10, w_train=None,
+            bf_threshold=0.001, ls_threshold=0.1, max_iter_backfitting=10, parallel = True, **fit_params):
+        """
+            Fit the model to the training data.
+            Parameters:
+            -----------
+            X_train : pandas.DataFrame
+                The training input samples.
+            y_train : pandas.Series
+                The target values (class labels) as integers or strings.
+            max_iter_ls : int, optional (default=10)
+                Maximum number of iterations for the least squares fitting.
+            w_train : array-like, optional
+                Sample weights. If None, then samples are equally weighted.
+            bf_threshold : float, optional (default=0.001)
+                Threshold for the backfitting convergence.
+            ls_threshold : float, optional (default=0.1)
+                Threshold for the least squares convergence.
+            max_iter_backfitting : int, optional (default=10)
+                Maximum number of iterations for the backfitting procedure.
+            parallel : bool, optional (default=True)
+                Whether to use parallel processing for fitting.
+            **fit_params : dict
+                Additional parameters to pass to the fit method of the models.
+            Returns:
+            --------
+            self : object
+                Returns the instance itself.
+            """
+        # Fit each model with binary labels for the corresponding class
+        for model in self.models:
+            assert all(term in X_train.columns for term in model.p_terms + model.np_terms)
+
+        for idx, k in enumerate(y_train.unique()):
+            # Create binary targets for current class (one-vs-rest ): 1 if the class matches, else 0
+            y_binary = (y_train == k).astype(int) 
+            
+            print(f"Training model for class {k}")
+            
+            self.models[idx].fit(X_train, y_binary, max_iter_ls, w_train=w_train,
+            bf_threshold=bf_threshold, ls_threshold=ls_threshold, max_iter_backfitting=max_iter_backfitting, parallel = parallel, **fit_params)
+
+        return self.models  
+      
+    def predict(self, X_test):
+        """
+        Predict the class labels and probabilities for the given test data.
+
+        Parameters:
+        -----------
+        X_test : array-like of shape (n_samples, n_features)
+            The input samples to predict.
+
+        Returns:
+        --------
+        predicted_class : ndarray of shape (n_samples,)
+            The predicted class labels for each sample.
+
+        probs : ndarray of shape (n_samples, n_classes)
+            The predicted probabilities for each class for each sample.
+        """
+        # Get predictions from each binary model
+        preds = np.column_stack([model.predict(X_test, type="response") for model in self.models])
+        # Optionally, normalize using softmax to get calibrated probabilities:
+        exp_preds = np.exp(preds)
+        probs = exp_preds / np.sum(exp_preds, axis=1, keepdims=True)
+        # Predicted class is the one with highest probability
+        predicted_class = np.argmax(probs, axis=1)
+        return predicted_class, probs
