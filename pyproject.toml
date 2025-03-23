@@ -1,0 +1,39 @@
+[build-system]
+requires = ['tensorflow[and-cuda]==2.12.0', 
+        'argparse',
+        'matplotlib==3.9.4',
+        'scikit-learn==1.3.0',
+        'seaborn==0.13.2',
+        'scipy==1.13.1',
+        'keras',
+        'numpy',
+        'pandas',
+        'dill==0.3.6',
+        'joblib==1.3.2',
+        'setuptools>=61.0']
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuralGAM"
+version = "1.0.0"
+authors = [
+  {name="Ines Ortega-Fernandez", email="iortega@gradiant.org"},
+  {name="Marta Sestelo", email="sestelo@uvigo.gal"}
+]
+maintainers = [
+  {name="Ines Ortega-Fernandez", email="iortega@gradiant.org"}
+]
+description = "Neural network framework based on Generalized Additive Models."
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = {file = "LICENSE"}
+keywords = ["deep neural networks", "explainable ai", "xAI", "Generalized Additive Models"]
+
+[project.urls]
+Repository = "https://github.com/inesortega/pyneuralGAM"
+Issues = "https://github.com/inesortega/pyNeuralGAM/issues"
+Homepage = "https://inesortega.github.io/software/2023-neuralGAM"
