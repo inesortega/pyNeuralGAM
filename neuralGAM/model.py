@@ -157,10 +157,9 @@ class NeuralGAM(tf.keras.Model):
         """
         
         if len(self.p_terms) > 0:
-            # remove from self.np_terms the linear terms
             self.np_terms = list(X_train.columns)
-            for term in self.p_terms:
-                self.np_terms.remove(term)
+            # remove from self.np_terms the linear terms
+            self.np_terms = [x for x in self.np_terms if x not in self.p_terms]
         else:
             self.np_terms = list(X_train.columns)
         
@@ -169,19 +168,19 @@ class NeuralGAM(tf.keras.Model):
         self.build_networks()
 
 
-        logger.log(level=logger.INFO, msg = f"\nFitting GAM")
-        logger.log(level=logger.INFO, msg = f" -- local scoring iter = {max_iter_ls}")
-        logger.log(level=logger.INFO, msg = f" -- backfitting iter = {max_iter_backfitting}")
-        logger.log(level=logger.INFO, msg = f" -- ls_threshold = {ls_threshold}")
-        logger.log(level=logger.INFO, msg = f" -- bf_threshold = {bf_threshold}")
-        logger.log(level=logger.INFO, msg = f" -- learning_rate = {self.lr}\n")
+        logging.debug(f"\nFitting GAM")
+        logging.debug(f" -- local scoring iter = {max_iter_ls}")
+        logging.debug(f" -- backfitting iter = {max_iter_backfitting}")
+        logging.debug(f" -- ls_threshold = {ls_threshold}")
+        logging.debug(" -- bf_threshold = {bf_threshold}")
+        logging.debug(" -- learning_rate = {self.lr}\n")
         
         
         if parallel:
-            logging.log(level = logging.DEBUG, msg="Using parallel execution")
+            logger.debug("Using parallel execution")
 
         else:
-            logging.log(level = logging.DEBUG, msg ="Using sequential execution")
+            logger.debug("Using sequential execution")
 
         converged = False
         f = X_train*0
@@ -206,7 +205,7 @@ class NeuralGAM(tf.keras.Model):
         
         # Local scoring loop.
         while (not converged and it <= max_iter_ls):
-            logging.log(level = logging.DEBUG, msg =f"Local Scoring Iteration - {it}")
+            logging.info(f"Local Scoring Iteration - {it}")
             if self.family == "gaussian":
                 Z = y_train
                 W = w
@@ -252,7 +251,7 @@ class NeuralGAM(tf.keras.Model):
                 # compute the differences in the predictor at each iteration
                 err = np.sum(eta - eta_prev)**2 / np.sum(eta_prev**2)
                 eta_prev = eta
-                logger.INFO(level=logging.INFO, msg="BACKFITTING ITERATION #{0}: Current err = {1}".format(it_backfitting, err))
+                logging.info(f"BACKFITTING ITERATION #{it_backfitting}: Current err = {err}")
                 it_backfitting = it_backfitting + 1
                 self.training_err.append(err)
 
@@ -260,9 +259,9 @@ class NeuralGAM(tf.keras.Model):
             dev_old = dev_new
             dev_new = self.deviance(muhat, y_train, w)
             dev_delta = np.abs((dev_old - dev_new) / dev_old)
-            logging.log(level = logging.DEBUG, msg =f"Dev delta = {dev_delta}")
+            logging.info(f"Dev delta = {dev_delta}")
             if dev_delta < ls_threshold:
-                logging.log(level = logging.INFO, msg =f"Convergence achieved.")
+                logging.info("Convergence achieved.")
                 converged = True
             it += 1
         

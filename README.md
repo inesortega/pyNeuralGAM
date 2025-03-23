@@ -92,10 +92,10 @@ To perform logistic regression using the neuralGAM package, follow these steps:
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     ```
 
-3. Initialize the NeuralGAM model. You might need to adjust the `num_units` parameter depending on your data complexity and availability. Each number in the list defines the number of hidden units in each layer of the Deep Neural Network. For simple problems we recommend a single-layer neural network with 1024 units.
+3. Initialize the NeuralGAM model. You might need to adjust the `num_units` parameter depending on your data complexity and availability. Each number in the list defines the number of hidden units in each layer of the Deep Neural Network. For simple problems we recommend a single-layer neural network with 1024 units. If you want to force a linear fit for a specific covariate, you can do so using the `linear_terms` parameter:
 
     ```python
-    ngam = NeuralGAM(family="binomial", num_units=[1024], learning_rate=0.00053)
+    ngam = NeuralGAM(family="binomial", num_units=[1024], learning_rate=0.00053, linear_terms=[1])
     ```
 
 4. Fit the model to the training data:
@@ -107,9 +107,9 @@ To perform logistic regression using the neuralGAM package, follow these steps:
 5. Make predictions on the test data and compute the accuracy:
 
     ```python
-    y_pred = ngam.predict(X_test, type="response")
-    y_pred_class = (y_pred > 0.5).astype(int)
-    accuracy = accuracy_score(y_test, y_pred_class)
+    y_pred = ngam.predict(X_test, type="response")  # get predicted probabilities
+    y_pred_class = (y_pred > 0.5).astype(int)   
+    accuracy = accuracy_score(y_test, y_pred_class) # assuming y_test is in the discrete set {0,1}
     print(f"Accuracy in the test set = {accuracy}")
     ```
 
