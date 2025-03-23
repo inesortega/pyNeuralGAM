@@ -70,7 +70,7 @@ def generate_normal_data(nrows, err_type, family):
             - y (pd.Series): Series with the generated target variable.
             - fs (pd.DataFrame): DataFrame with the transformed features used to compute the target variable.
     """
-    np.random.seed(seed)
+    
     x1 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x2 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x3 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
