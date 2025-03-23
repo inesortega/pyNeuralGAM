@@ -1,0 +1,40 @@
+from setuptools import setup
+
+setup(
+    name='neuralGAM',
+    version='1.0.0',    
+    description='Neural network framework based on Generalized Additive Models from Hastie & Tibshirani (1990, ISBN:9780412343902), which trains a different neural network to estimate the contribution of each feature to the response variable. The networks are trained independently leveraging the local scoring and backfitting algorithms to ensure that the Generalized Additive Model converges and it is additive. The resultant Neural Network is a highly accurate and interpretable deep learning model, which can be used for high-risk AI practices where decision-making should be based on accountable and interpretable algorithms.',
+    url='https://github.com/inesortega/pyNeuralGAM',
+    author='Ines Ortega-Fernandez, Marta Sestelo',
+    author_email='iortega@gradiant.org',
+    license='MLP 2.0',
+    packages=['neuralGAM'],
+    install_requires=[
+        'tensorflow[and-cuda]==2.12.0', 
+        'argparse',
+        'matplotlib==3.9.4',
+        'scikit-learn==1.3.0',
+        'seaborn==0.13.2',
+        'scipy==1.13.1',
+        'keras',
+        'numpy',
+        'pandas',
+        'dill==0.3.6',
+        'joblib==1.3.2'
+    ],
+    classifiers=[
+        'Development Status :: 1 - Planning',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: MLP 2.0 License',  
+        'Operating System :: POSIX :: Linux',        
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+    ],
+)

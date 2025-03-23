@@ -7,3 +7,7 @@ __pycache__
 *.ngam
 results
 .vscode/launch.json
+build
+neuralGAM.egg-info
+.vscode
+.pytest_cache
