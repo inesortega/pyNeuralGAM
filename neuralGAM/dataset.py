@@ -30,9 +30,6 @@ def split(X, y, fs, test_size=0.2):
     fs_train = fs.iloc[X_train.index].reset_index(drop=True)
     fs_test = fs.iloc[X_test.index].reset_index(drop=True)
 
-    print(f"Shape train {y_train.shape}")
-    print(f"Shape test {y_test.shape}")
-
     return X_train.reset_index(drop=True), X_test.reset_index(drop=True), y_train.reset_index(drop=True).squeeze(), y_test.reset_index(drop=True).squeeze(), fs_train, fs_test
 
 def save(X_train,X_test,y_train,y_test, output_folder):
@@ -54,10 +51,6 @@ def generate_err(nrows:int, err_type:str, eta0:pd.DataFrame):
     if err_type == "heteroscedastic":
         sigma = 0.5 + np.abs(0.25*eta0)
         err = err * sigma
-
-    print("\n Intercept: {0} data".format(err_type))
-    print(pd.DataFrame(err).describe())
-
     return err
 
 def get_truncated_normal(mean=0, sd=1, low=0, upp=10, nrows=25000):
@@ -85,7 +78,6 @@ def generate_normal_data(nrows, err_type, family):
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-    print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")
    
     y = compute_y(fs, beta0, nrows, err_type, family)
     
@@ -112,7 +104,7 @@ def generate_uniform_data(nrows, err_type, family):
     beta0 = np.ones(nrows) * 2 
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-    print("y = beta0 + f(x1) + f(x2) + f(x3) =  2 + x1^2 + 2x2 + sin(x3)")   
+    
     y = compute_y(fs, beta0, nrows, err_type, family)
     
     return X, y, fs
