@@ -1,4 +1,3 @@
-
 """ This file contains a set of auxiliar functions to plot and compute results, and generate synthetic datasets with different distributions """
 
 import itertools
@@ -56,7 +55,7 @@ def generate_err(nrows:int, err_type:str, eta0:pd.DataFrame):
 def get_truncated_normal(mean=0, sd=1, low=0, upp=10, nrows=25000):
     return truncnorm((low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd).rvs(nrows)
     
-def generate_normal_data(nrows, err_type, family):
+def generate_normal_data(nrows, err_type, family, num_classes=1):
     """
     Generates a dataset with normally distributed features and a target variable.
     Parameters:
@@ -70,7 +69,7 @@ def generate_normal_data(nrows, err_type, family):
             - y (pd.Series): Series with the generated target variable.
             - fs (pd.DataFrame): DataFrame with the transformed features used to compute the target variable.
     """
-    np.random.seed(seed)
+    
     x1 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x2 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
     x3 = get_truncated_normal(mean=0.0, sd=1.0, low=-5, upp=5, nrows=nrows)
@@ -78,12 +77,12 @@ def generate_normal_data(nrows, err_type, family):
     
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
-   
-    y = compute_y(fs, beta0, nrows, err_type, family)
+     
+    y = compute_y(fs, beta0, nrows, err_type, family, num_classes)
     
     return X, y, fs
 
-def generate_uniform_data(nrows, err_type, family):
+def generate_uniform_data(nrows, err_type, family, num_classes=1):
     """
     Generates uniform data for a specified number of rows and computes the response variable.
     Parameters:
@@ -96,8 +95,8 @@ def generate_uniform_data(nrows, err_type, family):
         - y (np.ndarray): Array containing the computed response variable.
         - fs (pd.DataFrame): DataFrame containing the functions of the features.
     """
-    if family != "gaussian" and family != "binomial":
-        raise ValueError("Family must be either 'gaussian' or 'binomial'")
+    if family != "gaussian" and family != "binomial" and family != "multinomial":
+        raise ValueError("Family must be either 'gaussian', 'binomial' or 'multinomial'")
     x1 = np.array(np.random.uniform(low=-2.5, high=2.5, size=nrows))
     x2 = np.array(np.random.uniform(low=-2.5, high=2.5, size=nrows))
     x3 = np.array(np.random.uniform(low=-2.5, high=2.5, size=nrows))
@@ -105,47 +104,62 @@ def generate_uniform_data(nrows, err_type, family):
     X = pd.DataFrame([x1,x2,x3]).transpose()
     fs = pd.DataFrame([x1*x1, 2*x2, np.sin(x3)]).transpose()
     
-    y = compute_y(fs, beta0, nrows, err_type, family)
+    y = compute_y(fs, beta0, nrows, err_type, family, num_classes)
     
     return X, y, fs
 
-def compute_y(fs, beta0, nrows, err_type, family):
+def compute_y(fs, beta0, nrows, err_type, family, num_classes=1):
     
-    y = fs.sum(axis=1) + beta0
     
     if family == "binomial":
+        y = fs.sum(axis=1) + beta0
+    
         y = y - np.mean(y)
         y = np.exp(y)/(1+np.exp(y)) # Probabilities of success       
         
     elif family == "gaussian":
+        y = fs.sum(axis=1) + beta0
         err = generate_err(nrows=nrows, err_type=err_type, eta0=y)
         y = y + err
         y = y - np.mean(y)
-    return pd.Series(y)
+    
+    elif family == "multinomial":
+        
+        y = pd.DataFrame()
+        
+        for i in range(num_classes):
+            y[i] = fs.sum(axis=1)*np.random.rand() + beta0  # (1,3) broadcasts row-wise
+            
+        y -= y.mean(axis=0)  # centering
+        
+        y_exp = np.exp(y)
+        y = y_exp.div(y_exp.sum(axis=1), axis=0)
 
-def generate_data(err_type, distribution, family, nrows=25000, seed = 343142):
+    return y
+
+def generate_data(err_type, distribution, family, nrows=25000, seed=343142, num_classes=3):
     """
-        Returns a pair of X,y to be used with NeuralGAM
-        :param: err_type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
-        :param: distribution: generate normal or uniform distributed X data {uniform, normal}
-        :param: family: generate reponse Y for linear or binomial regression problems
-        :param: nrows: data size (number of rows)
-        :return: X: pandas Dataframe object with generated X (one column per feature). Xs follow a normal distribution
-        :return: y: pandas Series object with computed y, with a normal distribution + homoskedastic residual
+    Returns a pair of X, y to be used with NeuralGAM.
+    :param: err_type: homogeneity of variance on the intercept term {homoscedastic, heteroscedastic}
+    :param: distribution: generate normal or uniform distributed X data {uniform, normal}
+    :param: family: generate response Y for linear, binomial, or multinomial regression problems
+    :param: nrows: data size (number of rows)
+    :param: num_classes: number of classes for multinomial distribution (default is 3)
+    :return: X: pandas DataFrame object with generated X (one column per feature). Xs follow a normal distribution
+    :return: y: pandas Series object with computed y, with a normal distribution + homoskedastic residual
     """
     if distribution != "uniform" and distribution != "normal":
         raise ValueError("Distribution must be either 'uniform' or 'normal'")
-    if family != "gaussian" and family != "binomial":
-        raise ValueError("Family must be either 'gaussian' or 'binomial'")
+    if family not in ["gaussian", "binomial", "multinomial"]:
+        raise ValueError("Family must be either 'gaussian', 'binomial', or 'multinomial'")
     if nrows <= 0:
         raise ValueError("Number of rows must be greater than 0")
     
     np.random.seed(seed)
 
     if distribution == "uniform":
-        X, y, fs = generate_uniform_data(nrows, err_type, family)
-
+        X, y, fs = generate_uniform_data(nrows, err_type, family, num_classes)
     elif distribution == "normal":
-        X, y, fs = generate_normal_data(nrows, err_type, family)   
+        X, y, fs = generate_normal_data(nrows, err_type, family, num_classes)
 
     return X, y, fs

@@ -21,8 +21,20 @@ from tensorflow.keras.optimizers import Adam
 from sklearn.linear_model import LinearRegression
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.filterwarnings(
+    "ignore", 
+    category=RuntimeWarning, 
+    message="divide by zero encountered in log"
+)
+warnings.filterwarnings(
+    "ignore", 
+    category=RuntimeWarning, 
+    message="invalid value encountered in multiply"
+)
 
-logger = logging.getLogger(__name__)
+logging.basicConfig()
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 class NeuralGAM(tf.keras.Model):
     """
@@ -57,6 +69,7 @@ class NeuralGAM(tf.keras.Model):
             eta0: Overall intercept.
             y: Final fitted response.
             eta: Final additive predictor.
+            feature_contributions: Fitted feature contributions.
             training_err (list): List to track backfitting convergence.
         """
         super(NeuralGAM, self).__init__()
@@ -74,6 +87,7 @@ class NeuralGAM(tf.keras.Model):
         self.eta0 = None  # overall intercept
         self.y = None     # final fitted response
         self.eta = None   # final additive predictor
+        self.learned_fs = None # learned functions
         self.training_err = []  # to track backfitting convergence
         
     def build_feature_NN(self, layer_name):
@@ -123,39 +137,34 @@ class NeuralGAM(tf.keras.Model):
         return f_k
 
     def fit(self, X_train, y_train, max_iter_ls=10, w_train=None,
-            bf_threshold=0.001, ls_threshold=0.1, max_iter_backfitting=10, parallel = True):
+            bf_threshold=0.001, ls_threshold=0.1, max_iter_backfitting=10, parallel=True):
         """
-        Fit the NeuralGAM model using local scoring and backfitting algorithms.
-        
+        Fit the Generalized Additive Model (GAM) to the training data.
         Parameters:
-            -----------
-            X_train : DataFrame
-                DataFrame with all predictors (both parametric and nonparametric).
-            y_train : array-like
-                Response vector.
+        -----------
+            X_train : pandas.DataFrame
+            The input features for training.
+            y_train : pandas.Series or numpy.ndarray
+            The target values for training.
             max_iter_ls : int, optional (default=10)
-                Maximum number of local scoring iterations.
-            w_train : array-like, optional
-                Input weights, different from Local Scoring Weights.
+            Maximum number of iterations for the local scoring loop.
+            w_train : numpy.ndarray, optional (default=None)
+            Weights for the training samples.
             bf_threshold : float, optional (default=0.001)
-                Threshold for backfitting convergence.
+            Threshold for convergence in the backfitting loop.
             ls_threshold : float, optional (default=0.1)
-                Threshold for local scoring convergence.
+            Threshold for convergence in the local scoring loop.
             max_iter_backfitting : int, optional (default=10)
-                Maximum number of backfitting iterations.
+            Maximum number of iterations for the backfitting loop.
             parallel : bool, optional (default=True)
-                Whether to use parallel execution for backfitting.
+            Whether to use parallel execution for backfitting.
         Returns:
-            --------
-            y : array-like
-                Final fitted response.
-            g : DataFrame
-                DataFrame containing the nonparametric feature contributions.
-            eta : array-like
-                Linear predictor.
-            bf_threshold=0.001, ls_threshold=0.1, max_iter_backfitting=10, parallel = True):
+        --------
+        self : object. The fitted model.
+            - self.feature_contributions: fitted feature contributions
+            - self.y: fitted response variable
+            - self.eta: additive predictor
         """
-        
         if len(self.p_terms) > 0:
             self.np_terms = list(X_train.columns)
             # remove from self.np_terms the linear terms
@@ -168,12 +177,12 @@ class NeuralGAM(tf.keras.Model):
         self.build_networks()
 
 
-        logging.debug(f"\nFitting GAM")
-        logging.debug(f" -- local scoring iter = {max_iter_ls}")
-        logging.debug(f" -- backfitting iter = {max_iter_backfitting}")
-        logging.debug(f" -- ls_threshold = {ls_threshold}")
-        logging.debug(" -- bf_threshold = {bf_threshold}")
-        logging.debug(" -- learning_rate = {self.lr}\n")
+        logger.debug(f"Fitting GAM")
+        logger.debug(f" -- local scoring iter = {max_iter_ls}")
+        logger.debug(f" -- backfitting iter = {max_iter_backfitting}")
+        logger.debug(f" -- ls_threshold = {ls_threshold}")
+        logger.debug(f" -- bf_threshold = {bf_threshold}")
+        logger.debug(f" -- learning_rate = {self.lr}")
         
         
         if parallel:
@@ -205,7 +214,7 @@ class NeuralGAM(tf.keras.Model):
         
         # Local scoring loop.
         while (not converged and it <= max_iter_ls):
-            logging.info(f"Local Scoring Iteration - {it}")
+            logger.info(f"Local Scoring Iteration - {it}")
             if self.family == "gaussian":
                 Z = y_train
                 W = w
@@ -251,7 +260,7 @@ class NeuralGAM(tf.keras.Model):
                 # compute the differences in the predictor at each iteration
                 err = np.sum(eta - eta_prev)**2 / np.sum(eta_prev**2)
                 eta_prev = eta
-                logging.info(f"BACKFITTING ITERATION #{it_backfitting}: Current err = {err}")
+                logger.info(f"BACKFITTING ITERATION #{it_backfitting}: Current err = {err}")
                 it_backfitting = it_backfitting + 1
                 self.training_err.append(err)
 
@@ -259,16 +268,17 @@ class NeuralGAM(tf.keras.Model):
             dev_old = dev_new
             dev_new = self.deviance(muhat, y_train, w)
             dev_delta = np.abs((dev_old - dev_new) / dev_old)
-            logging.info(f"Dev delta = {dev_delta}")
+            logger.info(f"Dev delta = {dev_delta}")
             if dev_delta < ls_threshold:
-                logging.info("Convergence achieved.")
+                logger.info("Convergence achieved.")
                 converged = True
             it += 1
         
         # Final fitted response.
         self.y = self.apply_link(eta)
         self.eta = eta
-        return self.y, g, eta
+        self.feature_contributions = g
+        return self
 
     def deviance(self, fit, y, W):
         """
@@ -426,6 +436,13 @@ class NeuralGAM(tf.keras.Model):
         elif self.family == "poisson":
             muhat = np.where(muhat <= 0.001, 0.001, muhat)
             return np.log(muhat)
+        elif self.family == "multinomial":
+            d = 1 - muhat 
+            d = np.where(muhat <= 0.001, 0.001, muhat)
+            d = np.where(muhat >= 0.999, 0.999, muhat)
+            # apply the softmax function
+            exp_muhat = np.exp(muhat - np.max(muhat, axis=1))
+            return exp_muhat / np.sum(exp_muhat, axis=1)
             
     def predict(self, X, type="link", terms=None, verbose=1):
         """
@@ -497,117 +514,3 @@ class NeuralGAM(tf.keras.Model):
         if type == "response":
             y = self.apply_link(eta)
             return y
-        
-class NeuralGAMMultinomial:
-    """
-    A class to represent a multinomial Generalized Additive Model (GAM) using neural networks.
-    Attributes
-    ----------
-    num_classes : int
-        The number of classes in the target variable.
-    models : list
-        A list of NeuralGAM models, one for each class.
-    Methods
-    -------
-    __init__: Constructs all the necessary attributes for the NeuralGAMMultinomial object.
-    fit: Fits the model to the training data.
-    predict: Predicts the class labels and probabilities for the test data.
-    """
-    def __init__(self, num_classes, num_units=1024, learning_rate=0.001, activation='relu', 
-                 kernel_initializer='glorot_normal', kernel_regularizer=None,
-                 loss=None, linear_terms=None, verbose = 0,**kwargs):
-        """
-        Initializes the multi-class NeuralGAM model.
-
-            Parameters:
-            num_classes (int): Number of classes for the classification task.
-            num_units (int, optional): Number of units in each hidden layer of the neural network. Default is 1024.
-            learning_rate (float, optional): Learning rate for the optimizer. Default is 0.001.
-            activation (str, optional): Activation function to use in the neural network. Default is 'relu'.
-            kernel_initializer (str, optional): Initializer for the kernel weights matrix. Default is 'glorot_normal'.
-            kernel_regularizer (optional): Regularizer function applied to the kernel weights matrix. Default is None.
-            loss (optional): Loss function to use. Default is None.
-            linear_terms (optional): Parametric terms for the model. Default is None.
-            **kwargs: Additional keyword arguments.
-
-            Attributes:
-            num_classes (int): Number of classes for the classification task.
-            models (list): List of NeuralGAM models, one for each class.
-        """
-
-        self.num_classes = num_classes
-        # Create one NeuralGAM per class using the binomial family
-        self.models = [NeuralGAM(family="binomial", num_units=num_units, learning_rate=learning_rate, 
-                                   activation=activation, kernel_initializer=kernel_initializer, 
-                                   kernel_regularizer=kernel_regularizer, linear_terms=linear_terms, verbose=verbose,**kwargs)
-                       for _ in range(num_classes)]
-    
-    def fit(self, X_train, y_train, max_iter_ls=10, w_train=None,
-            bf_threshold=0.001, ls_threshold=0.1, max_iter_backfitting=10, parallel = True, **fit_params):
-        """
-            Fit the model to the training data.
-            Parameters:
-            -----------
-            X_train : pandas.DataFrame
-                The training input samples.
-            y_train : pandas.Series
-                The target values (class labels) as integers or strings.
-            max_iter_ls : int, optional (default=10)
-                Maximum number of iterations for the least squares fitting.
-            w_train : array-like, optional
-                Sample weights. If None, then samples are equally weighted.
-            bf_threshold : float, optional (default=0.001)
-                Threshold for the backfitting convergence.
-            ls_threshold : float, optional (default=0.1)
-                Threshold for the least squares convergence.
-            max_iter_backfitting : int, optional (default=10)
-                Maximum number of iterations for the backfitting procedure.
-            parallel : bool, optional (default=True)
-                Whether to use parallel processing for fitting.
-            **fit_params : dict
-                Additional parameters to pass to the fit method of the models.
-            Returns:
-            --------
-            self : object
-                Returns the instance itself.
-            """
-        # Fit each model with binary labels for the corresponding class
-        for model in self.models:
-            assert all(term in X_train.columns for term in model.p_terms + model.np_terms)
-
-        for idx, k in enumerate(y_train.unique()):
-            # Create binary targets for current class (one-vs-rest ): 1 if the class matches, else 0
-            y_binary = (y_train == k).astype(int) 
-            
-            logging.log(level=logging.INFO, msg = f"Training model for class {k}")
-            
-            self.models[idx].fit(X_train, y_binary, max_iter_ls, w_train=w_train,
-            bf_threshold=bf_threshold, ls_threshold=ls_threshold, max_iter_backfitting=max_iter_backfitting, parallel = parallel, **fit_params)
-
-        return self.models  
-      
-    def predict(self, X_test):
-        """
-        Predict the class labels and probabilities for the given test data.
-
-        Parameters:
-        -----------
-        X_test : array-like of shape (n_samples, n_features)
-            The input samples to predict.
-
-        Returns:
-        --------
-        predicted_class : ndarray of shape (n_samples,)
-            The predicted class labels for each sample.
-
-        probs : ndarray of shape (n_samples, n_classes)
-            The predicted probabilities for each class for each sample.
-        """
-        # Get predictions from each binary model
-        preds = np.column_stack([model.predict(X_test, type="response") for model in self.models])
-        # Optionally, normalize using softmax to get calibrated probabilities:
-        exp_preds = np.exp(preds)
-        probs = exp_preds / np.sum(exp_preds, axis=1, keepdims=True)
-        # Predicted class is the one with highest probability
-        predicted_class = np.argmax(probs, axis=1)
-        return predicted_class, probs

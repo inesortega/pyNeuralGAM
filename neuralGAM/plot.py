@@ -6,7 +6,7 @@ import itertools
 import pandas as pd
 import numpy as np 
 
-def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, output_path: str = None):    
+def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str = None, output_path: str = None, label = None):    
     """
     Plots partial dependency plots for each feature in the dataset.
     Parameters:
@@ -25,11 +25,12 @@ def plot_partial_dependencies(x: pd.DataFrame, fs: pd.DataFrame, title: str, out
         data['x'] = x[x.columns[i]]
         data['f(x)']= fs[fs.columns[i]]
         
-        sns.lineplot(data = data, x='x', y='f(x)', ax=axs[i])
+        sns.lineplot(data = data, x='x', y='f(x)', ax=axs[i], legend=label)
         axs[i].grid()
         axs[i].set_xlabel(f'$X_{i+1}$')
         axs[i].set_ylabel(f'$f(x_{i+1})$')
-    
+        if label:
+            axs[i].legend()
     plt.tight_layout()
     
     if output_path:
