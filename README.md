@@ -50,7 +50,7 @@ To perform linear regression using the neuralGAM package, follow these steps:
 4. Fit the model to the training data:
 
     ```python
-    muhat, fs_train_estimated, eta = ngam.fit(X_train=X_train, y_train=y_train, max_iter_ls=10, bf_threshold=1e-5, ls_threshold=0.01, max_iter_backfitting=10, parallel=True)
+    ngam.fit(X_train=X_train, y_train=y_train, max_iter_ls=10, bf_threshold=1e-5, ls_threshold=0.01, max_iter_backfitting=10, parallel=True)
     ```
 
 5. Make predictions on the test data and compute the mean squared error:
@@ -68,7 +68,7 @@ To perform linear regression using the neuralGAM package, follow these steps:
     import matplotlib.pyplot as plt
 
     plt.style.use('seaborn-v0_8')
-    plot_partial_dependencies(x=X_train, fs=fs_train_estimated, title="Estimated Training Partial Effects")
+    plot_partial_dependencies(x=X_train, fs=ngam.feature_contributions, title="Estimated Training Partial Effects")
     fs_test_est = ngam.predict(X_test, type="terms")
     plot_partial_dependencies(x=X_test, fs=fs_test_est, title="Estimated Test Partial Effects")
     ```
@@ -104,7 +104,7 @@ To perform logistic regression using the neuralGAM package, follow these steps:
 4. Fit the model to the training data:
 
     ```python
-    muhat, fs_train_estimated, eta = ngam.fit(X_train=X_train, y_train=y_train, max_iter_ls=10, bf_threshold=1e-5, ls_threshold=0.01, max_iter_backfitting=10, parallel=True)
+    ngam.fit(X_train=X_train, y_train=y_train, max_iter_ls=10, bf_threshold=1e-5, ls_threshold=0.01, max_iter_backfitting=10, parallel=True)
     ```
 
 5. Make predictions on the test data and compute the accuracy:
@@ -123,7 +123,7 @@ To perform logistic regression using the neuralGAM package, follow these steps:
     import matplotlib.pyplot as plt
 
     plt.style.use('seaborn-v0_8')
-    plot_partial_dependencies(x=X_train, fs=fs_train_estimated, title="Estimated Training Partial Effects")
+    plot_partial_dependencies(x=X_train, fs=ngam.feature_contributions, title="Estimated Training Partial Effects")
     fs_test_est = ngam.predict(X_test, type="terms")
     plot_partial_dependencies(x=X_test, fs=fs_test_est, title="Estimated Test Partial Effects")
     ```
